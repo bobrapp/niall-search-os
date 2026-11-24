@@ -1,0 +1,47 @@
+name: niall-scout
+
+on:
+  schedule:
+    - cron: "0 13 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Print the digest without emailing"
+        default: "false"
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: niall-scout
+  cancel-in-progress: false
+
+jobs:
+  scout:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Restore seen-jobs state
+        uses: actions/cache@v4
+        with:
+          path: scout/state.json
+          key: niall-scout-state-${{ github.run_id }}
+          restore-keys: |
+            niall-scout-state-
+      - name: Run scout
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          DIGEST_FROM: ${{ secrets.DIGEST_FROM }}
+          DIGEST_TO: ${{ secrets.DIGEST_TO }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: python scout/scout.py
