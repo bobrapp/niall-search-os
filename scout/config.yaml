@@ -1,0 +1,71 @@
+# Niall Search OS scout config
+# Sources: greenhouse = boards-api.greenhouse.io token, lever = api.lever.co token.
+# When a token is null the scout guesses the lowercase company name; a 404 means
+# the guess is wrong - confirm the real token from any of that company's job URLs.
+# Custom-ATS companies (listed with both null and custom: true) are skipped in v1.
+
+candidate_profile: profile.md
+digest_to_default: dr.n.sheehan@gmail.com
+digest_from_default: dr.n.sheehan@gmail.com
+
+# Title filter, applied case-insensitively as word matches.
+title_must_match_any:
+  - director
+  - head
+  - vp
+  - vice president
+  - principal
+  - chief
+  - transformation
+  - governance
+  - finops
+  - cloud
+title_none_any:
+  - intern
+  - junior
+  - engineer i
+  - engineer ii
+  - recruiter
+  - coordinator
+  - associate
+
+max_tokens_per_digest: 4000
+
+targets:
+  - name: Microsoft
+    greenhouse: null
+    lever: null
+    custom_ats: true
+  - name: Amazon Web Services
+    greenhouse: null
+    lever: null
+    custom_ats: true
+  - name: Google Cloud
+    greenhouse: null
+    lever: null
+    custom_ats: true
+  - name: IBM (Apptio)
+    greenhouse: null
+    lever: null
+    custom_ats: true
+    alt_names: [ibm]
+  - name: Flexera
+    greenhouse: flexera
+    lever: null
+  - name: CloudZero
+    greenhouse: cloudzero
+    lever: null
+  - name: Vantage
+    greenhouse: null
+    lever: vantage
+  - name: Credo AI
+    greenhouse: credoai
+    lever: null
+    alt_names: [credo-ai]
+  - name: Holistic AI
+    greenhouse: holisticai
+    lever: null
+    alt_names: [holistic-ai]
+  - name: Monitaur
+    greenhouse: monitaur
+    lever: null
