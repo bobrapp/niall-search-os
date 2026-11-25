@@ -1,0 +1,43 @@
+name: Search OS app
+on:
+  push:
+    paths: ['app/**', '.github/workflows/app.yml']
+  pull_request:
+    paths: ['app/**', '.github/workflows/app.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  app:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium webkit
+      - run: npm run test:e2e
+      - name: Lighthouse installable manifest audit
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
+        run: |
+          npm run preview -- --host localhost --port 4174 --strictPort > /tmp/search-os-preview.log 2>&1 &
+          preview_pid=$!
+          trap 'kill "$preview_pid" || true' EXIT
+          for attempt in {1..30}; do
+            if curl -fsS http://localhost:4174/ > /dev/null; then break; fi
+            sleep 1
+          done
+          npx --yes lighthouse@11.7.1 http://localhost:4174/ --only-audits=installable-manifest --chrome-flags="--headless --no-sandbox" --output=json --output-path=lighthouse.json
+          node -e 'const audit = require("./lighthouse.json").audits["installable-manifest"]; console.log(audit.title + ": " + audit.score); if (audit.score !== 1) { console.error(audit.details); process.exit(1); }'
