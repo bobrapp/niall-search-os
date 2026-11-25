@@ -1,9 +1,11 @@
 import { initialBackup, type Backup } from './data';
 
 export interface WorkspaceStore {
-  load(): Promise<Backup>;
-  save(data: Backup): Promise<void>;
+  load(): Promise<{ data: Backup; revision: number }>;
+  save(data: Backup, expectedRevision: number): Promise<number>;
 }
+
+export class WorkspaceConflict extends Error {}
 
 export interface SyncProvider {
   reconcile(local: Backup): Promise<Backup>;
@@ -22,21 +24,34 @@ export const indexedWorkspace: WorkspaceStore = {
   async load() {
     const db = await database();
     try {
-      return await new Promise<Backup>((resolve, reject) => {
-        const read = db.transaction('workspace').objectStore('workspace').get('current');
-        read.onsuccess = () => resolve(read.result ?? initialBackup());
-        read.onerror = () => reject(read.error);
+      return await new Promise((resolve, reject) => {
+        const transaction = db.transaction('workspace');
+        const store = transaction.objectStore('workspace');
+        const read = store.get('current'), revision = store.get('revision');
+        transaction.oncomplete = () => resolve({ data: read.result ?? initialBackup(), revision: revision.result ?? 0 });
+        transaction.onabort = transaction.onerror = () => reject(transaction.error);
       });
     } finally { db.close(); }
   },
-  async save(data) {
+  async save(data, expectedRevision) {
     const db = await database();
     try {
-      await new Promise<void>((resolve, reject) => {
+      return await new Promise<number>((resolve, reject) => {
         const transaction = db.transaction('workspace', 'readwrite');
-        transaction.objectStore('workspace').put(data, 'current');
-        transaction.oncomplete = () => resolve();
-        transaction.onabort = transaction.onerror = () => reject(transaction.error);
+        const store = transaction.objectStore('workspace');
+        const revision = store.get('revision');
+        let conflict = false;
+        revision.onsuccess = () => {
+          if ((revision.result ?? 0) !== expectedRevision) {
+            conflict = true;
+            transaction.abort();
+            return;
+          }
+          store.put(data, 'current');
+          store.put(expectedRevision + 1, 'revision');
+        };
+        transaction.oncomplete = () => resolve(expectedRevision + 1);
+        transaction.onabort = transaction.onerror = () => reject(conflict ? new WorkspaceConflict() : transaction.error);
       });
     } finally { db.close(); }
   },

@@ -57,12 +57,6 @@ export function Panel({ title, help, children }: { title: string; help?: string;
   return <section className="panel"><h2>{title}</h2>{help && <p className="muted">{help}</p>}{children}</section>;
 }
 export function Empty({ children }: { children: ReactNode }) { return <p className="empty">{children}</p>; }
-export function download(name: string, data: string, type: string) {
-  const url = URL.createObjectURL(new Blob([data], { type }));
-  const anchor = document.createElement('a');
-  anchor.href = url; anchor.download = name; anchor.click();
-  setTimeout(() => URL.revokeObjectURL(url), 5000);
-}
 export function CopyText({ text }: { text: string }) {
   const [notice, setNotice] = useState('');
   return <><button disabled={!text.trim()} onClick={async () => {

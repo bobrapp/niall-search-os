@@ -1,19 +1,23 @@
 import { useState } from 'react';
 import { Draft } from './ai';
-import { offerTotals, value } from './data';
+import { minorUnits, offerTotals, value } from './data';
 import { CopyText, Fields, LongText, Panel, type Field } from './ui';
 import { Records, relationField, useWorkspace } from './workspace';
 
-export const money = (amount: number, currency: string) => {
-  try { return new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 2 }).format(amount); }
-  catch { return `${currency} ${amount.toLocaleString()}`.trim(); }
-};
+function currencyFormat(currency: string) {
+  try { return new Intl.NumberFormat(undefined, { style: 'currency', currency }); }
+  catch { return null; }
+}
 const name: Field = { key: 'name', label: 'Name' };
 const notes: Field = { key: 'notes', label: 'Notes', type: 'long' };
 
 export function Convert() {
   const { data } = useWorkspace();
   const currency = value(data.settings, 'currency') || 'USD';
+  const format = currencyFormat(currency);
+  const digits = format?.resolvedOptions().maximumFractionDigits ?? 2;
+  const money = (amount: number) => format?.format(amount) ?? `${currency} ${amount.toLocaleString()}`.trim();
+  const floor = minorUnits(data.settings.floor, digits), target = minorUnits(data.settings.compTarget, digits);
   const [roleId, setRole] = useState(''), [question, setQuestion] = useState(''), [answer, setAnswer] = useState('');
   const roleFacts = (id: unknown) => id ? data.roles.find(row => row.id === id) : undefined;
   const stories = data.stories.map(({ name, themes, story }) => ({ name, themes, story }));
@@ -44,13 +48,12 @@ export function Convert() {
       <LongText label="Practice answer" text={answer} onChange={setAnswer} />
       <Draft task="mockFeedback" label="AI feedback" facts={{ role: roleFacts(roleId), question, answer }} />
     </Panel>
-    <Panel title="Compare offers" help={`Annual: base + target bonus + yearly equity. First year adds sign-on. Guardrails: floor ${money(Number(data.settings.floor) || 0, currency)} · target ${money(Number(data.settings.compTarget) || 0, currency)}.`}>
+    <Panel title="Compare offers" help={`Annual: base + target bonus + yearly equity. First year adds sign-on. Guardrails: floor ${money(floor / 10 ** digits)} · target ${money(target / 10 ** digits)}.`}>
       {data.offers.length > 0 && <div className="comparison">{data.offers.map((offer, index) => {
-        const { annual, firstYear } = offerTotals(offer);
-        const floor = Number(data.settings.floor) || 0, target = Number(data.settings.compTarget) || 0;
+        const { annual, firstYear, annualMinor } = offerTotals(offer, digits);
         return <div key={index} className="counter"><strong>{value(offer, 'name') || 'Untitled offer'}</strong>
-          <span>Annual: {money(annual, currency)}</span><span>First year: {money(firstYear, currency)}</span>
-          <small>{target > 0 && annual >= target ? 'Meets target' : floor > 0 && annual < floor ? 'Below floor' : floor > 0 && annual >= floor ? 'Meets floor' : 'No floor set'}</small></div>;
+          <span>Annual: {money(annual)}</span><span>First year: {money(firstYear)}</span>
+          <small>{target > 0 && annualMinor >= target ? 'Meets target' : floor > 0 && annualMinor < floor ? 'Below floor' : floor > 0 ? 'Meets floor' : 'No floor set'}</small></div>;
       })}</div>}
       <Records list="offers" label="offer" fields={[{ key: 'name', label: 'Offer name' }, roleField,
         ...([['base', 'Base'], ['bonus', 'Bonus %'], ['equity', 'Equity per year'], ['signOn', 'Sign-on']] as const).map(([key, label]) => ({ key, label, type: 'number' as const, min: 0, step: 0.01 })), notes]}

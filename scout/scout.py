@@ -374,8 +374,7 @@ def build_digest(scored, failures, min_fit=0):
         lines.append(f"{hidden} more new posting(s) scored below {min_fit}/10 and are not listed.")
         lines.append("")
     if failures:
-        lines.append("Sources not read this run:")
-        lines.extend(f"  - {f}" for f in failures)
+        lines.append("A few sources could not be read today.")
     return "\n".join(lines)
 
 
@@ -420,6 +419,10 @@ def main():
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary:
         Path(summary).write_text(digest + "\n")
+    if failures:
+        print("Sources not read this run:")
+        for failure in failures:
+            print(f"  - {failure}")
     if not dry:  # a dry run must not mark postings as seen, or the real digest misses them
         seen.update(j["id"] for j in fresh)
         save_state(sorted(seen))

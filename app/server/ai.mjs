@@ -38,8 +38,10 @@ export async function handleAI(request, response, env) {
   });
   if (request.method !== 'POST') return reply(405, { error: 'Method not allowed.' });
   if (!key) return reply(503, { error: 'AI is off because the server has no Anthropic API key.' });
-  const supplied = request.headers['x-ai-access-code'];
-  if (!accessCode || typeof supplied !== 'string' || !timingSafeEqual(digest(supplied), digest(accessCode))) {
+  const encoded = request.headers['x-ai-access-code-base64'];
+  const supplied = encoded ?? request.headers['x-ai-access-code'];
+  const expected = encoded === undefined || !accessCode ? accessCode : Buffer.from(accessCode, 'utf8').toString('base64');
+  if (!expected || typeof supplied !== 'string' || !timingSafeEqual(digest(supplied), digest(expected))) {
     return reply(401, { error: 'Enter a valid AI access code in Setup.' });
   }
   if (!request.headers['content-type']?.startsWith('application/json') || request.headers['sec-fetch-site'] === 'cross-site') return reply(403, { error: 'Only same-site JSON requests are accepted.' });

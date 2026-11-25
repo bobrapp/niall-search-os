@@ -76,6 +76,20 @@ describe('Vercel AI function', () => {
     });
   });
 
+  it('accepts the encoded header for a Unicode access code', async () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', 'test-only');
+    vi.stubEnv('AI_ACCESS_CODE', 'Fabrikam-€');
+    await withProxy(async request => {
+      const upstream = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({ content: [{ type: 'text', text: 'Fabrikam draft' }] }));
+      const draft = { method: 'POST', body: '{"task":"post","facts":"Fabrikam"}' };
+      const headers = { 'Content-Type': 'application/json', 'X-AI-Access-Code-Base64': Buffer.from('Fabrikam-€').toString('base64') };
+      expect((await request({ ...draft, headers: { ...headers, 'X-AI-Access-Code-Base64': 'ZmFrZQ==' } })).status).toBe(401);
+      expect(await (await request({ ...draft, headers })).json()).toEqual({ draft: 'Fabrikam draft' });
+      expect(upstream).toHaveBeenCalledOnce();
+      expect(new Headers(upstream.mock.calls[0][1]?.headers).has('X-AI-Access-Code-Base64')).toBe(false);
+    });
+  });
+
   it('limits authenticated drafts per instance and resets after one minute', async () => {
     vi.stubEnv('ANTHROPIC_API_KEY', 'test-only');
     vi.stubEnv('AI_ACCESS_CODE', 'fictional-code');

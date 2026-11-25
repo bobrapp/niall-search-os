@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { collections, exportBackup, importBackup, initialBackup, offerTotals, removeExamples } from './data';
+import { describe, expect, it, vi } from 'vitest';
+import { collections, exportBackup, importBackup, initialBackup, newRow, offerTotals, removeExamples } from './data';
 import { exportCsv, importConnections, parseDigest } from './imports';
 import { keywordMatch } from './keywords';
 
@@ -8,11 +8,31 @@ describe('backup', () => {
     const original = { ...initialBackup(), future: { extension: true } };
     original.settings = { positioning: 'Northwind', future: { enabled: true } };
     for (const key of collections) original[key].push({ example: true, name: 'Contoso', future: [1, null, false] }, { name: 'Fabrikam' });
-    expect(importBackup(exportBackup(original))).toEqual(original);
+    original.targets[0].id = 'contoso';
+    original.contacts[0].targetId = 'contoso';
+    const restored = importBackup(exportBackup(original));
+    expect(restored).toMatchObject(original);
+    for (const key of collections) expect(new Set(restored[key].map(row => row.id)).size).toBe(restored[key].length);
+    expect(restored.targets[0].id).toBe('contoso');
+    expect(restored.contacts[0].targetId).toBe('contoso');
+    expect(importBackup(exportBackup(restored))).toEqual(restored);
     expect(removeExamples(original).board).toEqual([{ name: 'Fabrikam' }]);
     expect(original.board).toHaveLength(2);
   });
   it('rejects missing collections', () => expect(() => importBackup('{"settings":{}}')).toThrow());
+  it('rejects a backup with a malformed tool budget entry', () => {
+    const backup = initialBackup();
+    backup.settings.tools = [{ name: 'Fabrikam' }, null];
+    expect(() => importBackup(exportBackup(backup))).toThrow('Backup tool budget must be a list of records.');
+  });
+  it('creates RFC 4122 version 4 IDs without randomUUID', () => {
+    const getRandomValues = vi.fn((bytes: Uint8Array) => bytes.fill(255));
+    vi.stubGlobal('crypto', { getRandomValues });
+    try {
+      expect(newRow({ name: 'Fabrikam' })).toEqual({ id: 'ffffffff-ffff-4fff-bfff-ffffffffffff', name: 'Fabrikam' });
+      expect(getRandomValues).toHaveBeenCalledOnce();
+    } finally { vi.unstubAllGlobals(); }
+  });
 });
 
 describe('LinkedIn CSV', () => {
@@ -37,6 +57,9 @@ describe('digest and local calculations', () => {
     expect(keywordMatch('and the', '')).toEqual({ score: 0, hits: [], missing: [] });
   });
   it('applies the bonus percentage and sign-on only to first-year compensation', () => {
-    expect(offerTotals({ base: 200, bonus: 25, equity: 30, signOn: 10 })).toEqual({ annual: 280, firstYear: 290 });
+    expect(offerTotals({ base: 200, bonus: 25, equity: 30, signOn: 10 })).toMatchObject({ annual: 280, firstYear: 290 });
+  });
+  it('rounds the bonus to the nearest minor unit before adding it', () => {
+    expect(offerTotals({ base: '100.50', bonus: '1' })).toEqual({ annual: 101.51, firstYear: 101.51, annualMinor: 10151 });
   });
 });
