@@ -77,19 +77,101 @@ def fetch_lever(token: str):
     return jobs
 
 
+def fetch_ashby(token: str):
+    # Board names are case-sensitive: "Vantage" works, "vantage" is a 404.
+    url = f"https://api.ashbyhq.com/posting-api/job-board/{token}"
+    resp = requests.get(url, timeout=30)
+    resp.raise_for_status()
+    jobs = []
+    for item in resp.json().get("jobs", []):
+        if item.get("isListed") is False:
+            continue
+        jobs.append(
+            {
+                "id": f"ab:{token}:{item.get('id')}",
+                "title": item.get("title") or "",
+                "location": item.get("location") or "",
+                "url": item.get("jobUrl") or item.get("applyUrl") or "",
+                "company": token,
+                "source": "ashby",
+            }
+        )
+    return jobs
+
+
+def fetch_bamboohr(token: str):
+    base = f"https://{token}.bamboohr.com/careers"
+    resp = requests.get(f"{base}/list", headers={"Accept": "application/json"}, timeout=30)
+    resp.raise_for_status()
+    jobs = []
+    for item in resp.json().get("result", []):
+        loc = item.get("location") or {}
+        jobs.append(
+            {
+                "id": f"bh:{token}:{item.get('id')}",
+                "title": item.get("jobOpeningName") or "",
+                "location": ", ".join(x for x in (loc.get("city"), loc.get("state")) if x),
+                "url": f"{base}/{item.get('id')}",
+                "company": token,
+                "source": "bamboohr",
+            }
+        )
+    return jobs
+
+
+def fetch_workday(token: str):
+    """token is "<host>/<tenant>/<site>", e.g.
+    "flexerasoftware.wd1.myworkdayjobs.com/flexerasoftware/FlexeraSoftware"."""
+    host, tenant, site = token.split("/")
+    url = f"https://{host}/wday/cxs/{tenant}/{site}/jobs"
+    jobs, offset, page = [], 0, 20
+    while offset < 500:  # a ceiling, so a misbehaving board cannot loop forever
+        resp = requests.post(
+            url,
+            json={"appliedFacets": {}, "limit": page, "offset": offset, "searchText": ""},
+            # Workday answers the default python-requests agent with 429.
+            headers={"User-Agent": "Mozilla/5.0 (compatible; niall-scout/1.0)"},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        postings = data.get("jobPostings", [])
+        for item in postings:
+            path = item.get("externalPath") or ""
+            jobs.append(
+                {
+                    "id": f"wd:{tenant}:{path}",
+                    "title": item.get("title") or "",
+                    "location": item.get("locationsText") or "",
+                    "url": f"https://{host}/en-US/{site}{path}",
+                    "company": token,
+                    "source": "workday",
+                }
+            )
+        offset += page
+        if len(postings) < page or offset >= (data.get("total") or 0):
+            break
+    return jobs
+
+
+FETCHERS = {
+    "greenhouse": fetch_greenhouse,
+    "lever": fetch_lever,
+    "ashby": fetch_ashby,
+    "bamboohr": fetch_bamboohr,
+    "workday": fetch_workday,
+}
+
+
 def collect(cfg):
     jobs, failures = [], []
     for target in cfg["targets"]:
         name = target["name"]
         if target.get("custom_ats"):
-            failures.append(f"{name}: custom ATS, skipped in v1 (add a greenhouse/lever token when known)")
+            failures.append(f"{name}: {target.get('note') or 'custom ATS, skipped in v1 (add a source token when known)'}")
             continue
-        candidates = []
-        if target.get("greenhouse"):
-            candidates.append(("greenhouse", target["greenhouse"]))
-        elif target.get("lever"):
-            candidates.append(("lever", target["lever"]))
-        else:
+        candidates = [(kind, target[kind]) for kind in FETCHERS if target.get(kind)][:1]
+        if not candidates:
             guesses = [re.sub(r"[^a-z0-9]", "", name.lower())] + [
                 re.sub(r"[^a-z0-9]", "", a.lower()) for a in target.get("alt_names", [])
             ]
@@ -97,7 +179,7 @@ def collect(cfg):
         got = False
         for kind, token in candidates:
             try:
-                jobs.extend(fetch_greenhouse(token) if kind == "greenhouse" else fetch_lever(token))
+                jobs.extend(FETCHERS[kind](token))
                 got = True
                 break
             except Exception as exc:  # noqa: BLE001 - report, keep going
@@ -235,8 +317,9 @@ def main():
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary:
         Path(summary).write_text(digest + "\n")
-    seen.update(j["id"] for j in fresh)
-    save_state(sorted(seen))
+    if not dry:  # a dry run must not mark postings as seen, or the real digest misses them
+        seen.update(j["id"] for j in fresh)
+        save_state(sorted(seen))
     print(f"jobs scanned: {len(jobs)}, new: {len(fresh)}, failures: {len(failures)}")
 
 

@@ -1,8 +1,14 @@
 # Niall Search OS scout config
-# Sources: greenhouse = boards-api.greenhouse.io token, lever = api.lever.co token.
-# When a token is null the scout guesses the lowercase company name; a 404 means
-# the guess is wrong - confirm the real token from any of that company's job URLs.
-# Custom-ATS companies (listed with both null and custom: true) are skipped in v1.
+# Sources, one per target (the first one set is used):
+#   greenhouse: boards-api.greenhouse.io board token
+#   lever:      api.lever.co token
+#   ashby:      jobs.ashbyhq.com board name - CASE-SENSITIVE ("Vantage", not "vantage")
+#   bamboohr:   the <name> in <name>.bamboohr.com
+#   workday:    "<host>/<tenant>/<site>" from the careers URL
+# With no source set the scout guesses a Greenhouse token from the company name;
+# a 404 means the guess is wrong - confirm the real one from that company's job URLs.
+# custom_ats: true skips a target and reports it in the digest footer (see "note").
+# Tokens below were confirmed against each company's careers page on 2026-11-24.
 
 candidate_profile: profile.md
 digest_to_default: dr.n.sheehan@gmail.com
@@ -50,22 +56,15 @@ targets:
     custom_ats: true
     alt_names: [ibm]
   - name: Flexera
-    greenhouse: flexera
-    lever: null
+    workday: flexerasoftware.wd1.myworkdayjobs.com/flexerasoftware/FlexeraSoftware
   - name: CloudZero
-    greenhouse: cloudzero
-    lever: null
+    ashby: CloudZero
   - name: Vantage
-    greenhouse: null
-    lever: vantage
+    ashby: Vantage
   - name: Credo AI
-    greenhouse: credoai
-    lever: null
-    alt_names: [credo-ai]
+    ashby: credo.ai
   - name: Holistic AI
-    greenhouse: holisticai
-    lever: null
-    alt_names: [holistic-ai]
+    bamboohr: holisticai
   - name: Monitaur
-    greenhouse: monitaur
-    lever: null
+    custom_ats: true
+    note: no job board - roles are listed by hand at monitaur.ai/company#careers
