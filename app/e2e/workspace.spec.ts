@@ -15,6 +15,38 @@ test('all screens work without AI and fit the viewport', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'AI gap notes' })).toBeDisabled();
 });
 
+test('WebKit touch controls are at least 44px tall', async ({ page, browserName }, testInfo) => {
+  test.skip(browserName !== 'webkit', 'iPhone and iPad WebKit regression');
+  if (testInfo.project.name === 'iphone') {
+    await page.setViewportSize({ width: 390, height: 780 });
+  } else {
+    await page.emulateMedia({ colorScheme: 'dark' });
+  }
+  const screens = ['This week', 'Map', 'Signal', 'Engage', 'Outreach', 'Convert', 'Board track', 'Insights', 'Tools & Setup'];
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Weekly cadence' })).toBeVisible();
+  const nav = page.getByRole('navigation', { name: 'Workspace' });
+  for (const name of screens) {
+    await nav.getByRole('link', { name, exact: true }).click();
+    await expect(page.getByRole('heading', { name, exact: true })).toBeVisible();
+    if (name === 'Map') await page.getByText('Edit targets and aliases', { exact: true }).click();
+    for (const add of await page.getByRole('button', { name: /^Add / }).all()) await add.click();
+    await page.locator('details:not([open])').evaluateAll(details => {
+      for (const detail of details) (detail as HTMLDetailsElement).open = true;
+    });
+    if (name === 'Signal') await expect(page.getByRole('combobox', { name: 'Stage', exact: true })).toBeVisible();
+    if (name === 'Outreach') await expect(page.getByRole('combobox', { name: 'Script', exact: true })).toBeVisible();
+    const undersized = await page.locator('select:visible, button:visible, input:visible').evaluateAll(controls =>
+      controls.flatMap(control => {
+        const height = control.getBoundingClientRect().height;
+        if (height >= 44) return [];
+        const label = (control as HTMLInputElement).labels?.[0]?.firstChild?.textContent?.trim();
+        return [{ control: control.tagName, label: label || control.getAttribute('aria-label') || control.textContent?.trim(), height }];
+      }));
+    expect.soft(undersized, `${name}: visible controls shorter than 44px`).toEqual([]);
+  }
+});
+
 test('manual outreach, local matching and scout imports persist after reload', async ({ page }) => {
   await page.goto('/#setup');
   await page.getByLabel('Resume', { exact: true }).fill('FinOps Craft');

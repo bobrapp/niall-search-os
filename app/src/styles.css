@@ -12,6 +12,19 @@ body { margin: 0; background: var(--bg); color: var(--text); }
 button, input, select, textarea { font: inherit; color: inherit; }
 button, input, select, textarea, summary, nav a { min-height: 44px; }
 button, input, select, textarea { border: 1px solid var(--line); border-radius: .55rem; padding: .48rem .7rem; background: var(--surface); max-width: 100%; }
+select {
+  -webkit-appearance: none;
+  appearance: none;
+  padding-inline-end: 2rem;
+  background-image: linear-gradient(45deg, transparent 44%, var(--muted) 44% 62%, transparent 62%),
+    linear-gradient(135deg, transparent 38%, var(--muted) 38% 56%, transparent 56%);
+  background-position: right 1.22rem center, right .9rem center;
+  background-repeat: no-repeat;
+  background-size: .32rem .32rem;
+}
+@media (forced-colors: active) {
+  select { appearance: auto; padding-inline-end: .7rem; background-image: none; }
+}
 button { cursor: pointer; font-weight: 650; overflow-wrap: anywhere; }
 button:disabled { cursor: default; opacity: .67; }
 button:not(:disabled):hover, nav a:hover, summary:hover { background: var(--soft); }
