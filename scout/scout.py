@@ -378,7 +378,7 @@ def build_digest(scored, failures, min_fit=0):
     return "\n".join(lines)
 
 
-def send_digest(subject, text):
+def send_digest(subject, text, recipient):
     host = os.environ.get("SMTP_HOST")
     if not host:
         print("SMTP_HOST not set; digest printed to log instead.")
@@ -387,7 +387,9 @@ def send_digest(subject, text):
     msg = EmailMessage()
     msg["Subject"] = subject
     msg["From"] = os.environ.get("DIGEST_FROM")
-    msg["To"] = os.environ.get("DIGEST_TO")
+    msg["To"] = recipient
+    if os.environ.get("DIGEST_TO") and os.environ["DIGEST_TO"] != recipient:
+        print("Ignored DIGEST_TO override; using the configured scout recipient.")
     msg.set_content(text)
     with smtplib.SMTP(host, int(os.environ.get("SMTP_PORT", "587"))) as smtp:
         smtp.starttls()
@@ -413,7 +415,7 @@ def main():
         print(digest)
     else:
         sent = send_digest(
-            f"Niall Search OS: {shown} worth a look of {len(scored)} new, {today_date()}", digest
+            f"Niall Search OS: {shown} worth a look of {len(scored)} new, {today_date()}", digest, cfg["digest_to"]
         )
         print(f"digest sent: {sent}")
     summary = os.environ.get("GITHUB_STEP_SUMMARY")

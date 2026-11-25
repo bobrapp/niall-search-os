@@ -17,8 +17,7 @@
 # Tokens below were confirmed against each company's careers page on 2026-11-24.
 
 candidate_profile: profile.md
-digest_to_default: dr.n.sheehan@gmail.com
-digest_from_default: dr.n.sheehan@gmail.com
+digest_to: bobrapp@gmail.com
 
 # Title filter, applied case-insensitively as word matches.
 title_must_match_any:
