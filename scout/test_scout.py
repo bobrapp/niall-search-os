@@ -164,13 +164,28 @@ class Digest(unittest.TestCase):
             sent = smtp.return_value.__enter__.return_value.send_message
             sent.assert_called_once()
             message = sent.call_args.args[0]
-            self.assertEqual(message["To"], env["DIGEST_TO"])
+            self.assertEqual(str(message["To"]), scout.yaml.safe_load((scout.ROOT / "config.yaml").read_text())["digest_to"])
             for text in (message.get_content(), summary.read_text()):
                 self.assertEqual(text.splitlines().count("A few sources could not be read today."), 1)
                 self.assertNotIn("Sources not read this run", text)
                 self.assertNotIn("503", text)
                 self.assertNotIn("https://example.invalid/source", text)
             self.assertIn(f"Sources not read this run:\n  - {failure}", log.getvalue())
+
+    def test_smtp_uses_only_configured_recipient_regardless_of_secret(self):
+        for override in ("", "other@example.invalid", "first@example.invalid, second@example.invalid"):
+            with self.subTest(override=override), \
+                 mock.patch.object(scout.smtplib, "SMTP") as smtp, \
+                 mock.patch("sys.stdout", new_callable=io.StringIO) as log, \
+                 mock.patch.dict(os.environ, {"SMTP_HOST": "smtp.example.invalid",
+                                              "DIGEST_FROM": "scout@example.invalid", "DIGEST_TO": override}, clear=True):
+                self.assertTrue(scout.send_digest("Fabrikam", "Digest", "owner@example.invalid"))
+                smtp.return_value.__enter__.return_value.send_message.assert_called_once()
+                message = smtp.return_value.__enter__.return_value.send_message.call_args.args[0]
+                self.assertEqual([address.addr_spec for address in message["To"].addresses], ["owner@example.invalid"])
+                if override:
+                    self.assertIn("Ignored DIGEST_TO override", log.getvalue())
+                    self.assertNotIn(override, log.getvalue())
 
 class DryRun(unittest.TestCase):
     def test_dry_run_sends_nothing_and_saves_no_state(self):

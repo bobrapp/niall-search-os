@@ -30,9 +30,9 @@ Set these repo secrets (Settings > Secrets and variables > Actions):
 | `ANTHROPIC_API_KEY` | Claude scoring |
 | `SMTP_HOST` / `SMTP_PORT` | mail relay (e.g. smtp.office365.com / 587) |
 | `SMTP_USER` / `SMTP_PASS` | relay credentials |
-| `DIGEST_FROM` / `DIGEST_TO` | from and to addresses (defaults to `dr.n.sheehan@gmail.com` from config) |
+| `DIGEST_FROM` | sender address |
 
-Nothing runs until the secrets exist. Until then every run fails fast and harmless.
+The scout sends only to Bob at the `digest_to` address in `scout/config.yaml`. It ignores the `DIGEST_TO` secret. Without `SMTP_HOST`, it prints the digest to the run log instead of emailing it.
 
 ## Schedule
 
