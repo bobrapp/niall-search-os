@@ -107,11 +107,27 @@ class Collect(unittest.TestCase):
             return [{"id": "ab:1", "title": "VP", "location": "", "url": "u", "company": token, "source": "ashby"}]
 
         with mock.patch.dict(scout.FETCHERS, {"ashby": fake}):
-            jobs, failures = scout.collect(cfg)
+            jobs, failures, manual_checks = scout.collect(cfg)
         self.assertEqual([j["company_name"] for j in jobs], ["Good Co"])
-        self.assertEqual(len(failures), 2)
+        self.assertEqual(len(failures), 1)
         self.assertIn("Bad Co (ashby:Bad)", failures[0])
-        self.assertEqual(failures[1], "Hand Co: check by hand")
+        self.assertEqual(manual_checks, ["Hand Co: check by hand"])
+
+    def test_only_unexpected_failures_add_the_digest_warning(self):
+        cfg = {"targets": [
+            {"name": "Northwind", "ashby": "northwind"},
+            {"name": "Fabrikam", "custom_ats": True, "note": "check by hand"},
+        ]}
+        for outage in (False, True):
+            with self.subTest(outage=outage), mock.patch.dict(scout.FETCHERS, {
+                "ashby": mock.Mock(return_value=[], side_effect=RuntimeError("503") if outage else None),
+            }):
+                jobs, failures, manual_checks = scout.collect(cfg)
+                self.assertEqual(jobs, [])
+                self.assertEqual(manual_checks, ["Fabrikam: check by hand"])
+                digest = scout.build_digest([], failures)
+                self.assertEqual(digest.splitlines().count("A few sources could not be read today."), int(outage))
+                self.assertNotIn("Fabrikam", digest)
 
     def test_shipped_config_names_only_known_sources(self):
         import yaml
@@ -156,7 +172,7 @@ class Digest(unittest.TestCase):
             env = {"GITHUB_STEP_SUMMARY": str(summary), "SMTP_HOST": "smtp.example.invalid",
                    "DIGEST_FROM": "scout@example.invalid", "DIGEST_TO": "reader@example.invalid"}
             with mock.patch.object(scout, "STATE_PATH", Path(tmp) / "state.json"), \
-                 mock.patch.object(scout, "collect", return_value=([], [failure])), \
+                 mock.patch.object(scout, "collect", return_value=([], [failure], ["Contoso: check by hand"])), \
                  mock.patch.object(scout.smtplib, "SMTP") as smtp, \
                  mock.patch("sys.stdout", new_callable=io.StringIO) as log, \
                  mock.patch.dict(os.environ, env, clear=True):
@@ -171,6 +187,7 @@ class Digest(unittest.TestCase):
                 self.assertNotIn("503", text)
                 self.assertNotIn("https://example.invalid/source", text)
             self.assertIn(f"Sources not read this run:\n  - {failure}", log.getvalue())
+            self.assertIn("Sources to check manually:\n  - Contoso: check by hand", log.getvalue())
 
     def test_smtp_uses_only_configured_recipient_regardless_of_secret(self):
         for override in ("", "other@example.invalid", "first@example.invalid, second@example.invalid"):
@@ -194,7 +211,7 @@ class DryRun(unittest.TestCase):
             state = Path(tmp) / "state.json"
             env = {"DRY_RUN": "true"}
             with mock.patch.object(scout, "STATE_PATH", state), \
-                 mock.patch.object(scout, "collect", return_value=([job], [])), \
+                 mock.patch.object(scout, "collect", return_value=([job], [], [])), \
                  mock.patch.object(scout, "send_digest") as send, \
                  mock.patch.dict(os.environ, env, clear=True):
                 scout.main()

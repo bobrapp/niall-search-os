@@ -27,7 +27,7 @@ export function initialBackup(): Backup {
 const isRecord = (value: unknown): value is Row => Boolean(value && typeof value === 'object' && !Array.isArray(value));
 export const toolRows = (settings: Backup['settings']): Row[] => Array.isArray(settings.tools) ? settings.tools.filter(isRecord) : [];
 
-function withRowIds(rows: Row[]): Row[] {
+function withRowIds(rows: Row[], replacedIds?: Map<unknown, string | undefined>): Row[] {
   const validId = (id: unknown): id is string => typeof id === 'string' && Boolean(id.trim());
   const reserved = new Set(rows.map(row => row.id).filter(validId));
   const used = new Set<string>();
@@ -39,9 +39,18 @@ function withRowIds(rows: Row[]): Row[] {
     let next = newRow(row);
     while (reserved.has(next.id)) next = newRow(row);
     reserved.add(next.id);
+    if (replacedIds && (typeof row.id === 'number' || (typeof row.id === 'string' && row.id && !validId(row.id)))) {
+      replacedIds.set(row.id, replacedIds.has(row.id) ? undefined : next.id);
+    }
     return next;
   });
 }
+
+const linkedCollections: Partial<Record<Collection, { field: string; lists: Collection[] }>> = {
+  targets: { field: 'targetId', lists: ['contacts', 'roles', 'outreach', 'engage'] },
+  contacts: { field: 'contactId', lists: ['outreach'] },
+  roles: { field: 'roleId', lists: ['interviews', 'offers', 'refs'] },
+};
 
 export function importBackup(text: string): Backup {
   const data: unknown = JSON.parse(text);
@@ -54,11 +63,26 @@ export function importBackup(text: string): Backup {
   if (tools !== undefined && (!Array.isArray(tools) || !tools.every(isRecord))) {
     throw new Error('Backup tool budget must be a list of records.');
   }
-  for (const key of collections) backup[key] = withRowIds(backup[key]);
+  for (const key of collections) {
+    const link = linkedCollections[key];
+    const ids = link && new Map<unknown, string | undefined>();
+    backup[key] = withRowIds(backup[key], ids);
+    if (!link || !ids?.size) continue;
+    const { field, lists } = link;
+    for (const list of lists) {
+      for (const row of backup[list]) {
+        const replacement = ids.get(row[field]);
+        if (replacement !== undefined) row[field] = replacement;
+      }
+    }
+  }
   if (Array.isArray(tools)) backup.settings.tools = withRowIds(tools);
   return backup;
 }
-export const exportBackup = (data: Backup) => JSON.stringify(data, null, 2);
+export function exportBackup(data: Backup) {
+  const settings = data.settings.tools === undefined ? data.settings : { ...data.settings, tools: toolRows(data.settings) };
+  return JSON.stringify({ ...data, settings }, null, 2);
+}
 export function removeExamples(data: Backup): Backup {
   const next = structuredClone(data);
   for (const key of collections) next[key] = next[key].filter(row => row.example !== true);
@@ -88,10 +112,20 @@ export function minorUnits(amount: unknown, digits: number) {
   const [coefficient, exponent = '0'] = numeric.toString().split('e');
   return Math.round(Number(`${coefficient}e${Number(exponent) + digits}`));
 }
+function bonusMinorUnits(base: number, rate: unknown) {
+  const percent = Number(rate);
+  if (!Number.isFinite(base) || !Number.isFinite(percent) || !percent) return 0;
+  const decimal = /^([+-]?)(\d*)(?:\.(\d*))?(?:e([+-]?\d+))?$/i;
+  const [, sign, whole, fraction = '', exponent = '0'] = decimal.exec(String(rate).trim()) ?? decimal.exec(String(percent))!;
+  const places = fraction.length + 2 - Number(exponent);
+  const numerator = BigInt(base) * BigInt(`${sign}${whole}${fraction}`) * 10n ** BigInt(Math.max(0, -places));
+  const denominator = 10n ** BigInt(Math.max(0, places));
+  const shifted = numerator + denominator / 2n;
+  return Number((shifted < 0n ? shifted - denominator + 1n : shifted) / denominator);
+}
 export function offerTotals(offer: Row, digits = 2) {
   const base = minorUnits(offer.base, digits);
-  const bonusBasisPoints = minorUnits(offer.bonus, 2);
-  const annualMinor = base + Math.round(base * bonusBasisPoints / 10_000) + minorUnits(offer.equity, digits);
+  const annualMinor = base + bonusMinorUnits(base, offer.bonus) + minorUnits(offer.equity, digits);
   const scale = 10 ** digits;
   return { annual: annualMinor / scale, firstYear: (annualMinor + minorUnits(offer.signOn, digits)) / scale, annualMinor };
 }

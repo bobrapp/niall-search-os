@@ -138,6 +138,35 @@ test('a stale tab cannot overwrite another tab’s saved changes', async ({ page
   await expect(second.getByLabel('Resume', { exact: true })).toHaveValue('');
 });
 
+test('version 1 tabs cannot overwrite a workspace after it is upgraded', async ({ page, context }) => {
+  const legacy = await context.newPage();
+  await legacy.route('**/legacy-workspace', route => route.fulfill({ contentType: 'text/html', body: '<title>Legacy workspace</title>' }));
+  await legacy.goto('/legacy-workspace');
+  const original = initialBackup();
+  original.settings.positioning = 'Northwind';
+  const legacySave = (snapshot: typeof original) => new Promise<string>((resolve, reject) => {
+    const open = indexedDB.open('niall-search-os', 1);
+    open.onerror = () => resolve(open.error?.name ?? 'Unknown error');
+    open.onupgradeneeded = () => { open.result.createObjectStore('workspace'); };
+    open.onsuccess = () => {
+      const db = open.result;
+      const transaction = db.transaction('workspace', 'readwrite');
+      transaction.objectStore('workspace').put(snapshot, 'current');
+      transaction.oncomplete = () => { db.close(); resolve('saved'); };
+      transaction.onabort = () => { db.close(); reject(transaction.error); };
+    };
+  });
+  expect(await legacy.evaluate(legacySave, original)).toBe('saved');
+
+  await page.goto('/#setup');
+  const positioning = page.getByRole('textbox', { name: 'Positioning', exact: true });
+  await expect(positioning).toHaveValue('Northwind');
+  const stale = { ...original, settings: { ...original.settings, positioning: 'Fabrikam' } };
+  expect(await legacy.evaluate(legacySave, stale)).toBe('VersionError');
+  await page.reload();
+  await expect(positioning).toHaveValue('Northwind');
+});
+
 test.describe('AI proxy controls', () => {
   test.use({ serviceWorkers: 'block' });
 
@@ -217,6 +246,20 @@ test('an offer with bonus exactly at each guardrail qualifies', async ({ page })
   await page.getByRole('link', { name: 'Convert', exact: true }).click();
   await expect(page.locator('.counter').filter({ hasText: 'Northwind' })).toContainText('Meets floor');
   await expect(page.locator('.counter').filter({ hasText: 'Fabrikam' })).toContainText('Meets target');
+});
+
+test('fractional bonus rates do not inflate an offer above the floor', async ({ page }) => {
+  const backup = initialBackup();
+  backup.settings.floor = '224255';
+  backup.offers = [{ name: 'Northwind', base: '200000', bonus: '12.125' }];
+  await page.goto('/#setup');
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByLabel('Import JSON backup').setInputFiles({
+    name: 'workspace.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(backup)),
+  });
+  await expect(page.getByText('Backup imported.')).toBeVisible();
+  await page.getByRole('link', { name: 'Convert', exact: true }).click();
+  await expect(page.locator('.counter').filter({ hasText: 'Northwind' })).toContainText('Below floor');
 });
 
 test('built PWA has a manifest, controls the page and reloads offline', async ({ page, context, browserName }) => {

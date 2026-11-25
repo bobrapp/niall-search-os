@@ -40,4 +40,4 @@ Weekdays 1:00 PM UTC (5:00 AM Pacific), plus a manual run button. Manual runs em
 
 ## Source tokens
 
-Greenhouse board tokens and Lever tokens are guessed from each company name when not set in `config.yaml`. A 404 just means the guess is wrong for that company: confirm the real token once (visible in any of that company's job-posting URLs) and set it in the config. The script reports every source it could not read in the digest footer, never silently skips.
+Greenhouse board tokens and Lever tokens are guessed from each company name when not set in `config.yaml`. A 404 just means the guess is wrong for that company: confirm the real token once (visible in any of that company's job-posting URLs) and set it in the config. Unexpected source failures add a short warning to the digest; details and planned manual checks are listed separately in the Actions run log.
