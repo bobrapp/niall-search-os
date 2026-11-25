@@ -219,6 +219,20 @@ test('an offer with bonus exactly at each guardrail qualifies', async ({ page })
   await expect(page.locator('.counter').filter({ hasText: 'Fabrikam' })).toContainText('Meets target');
 });
 
+test('fractional bonus rates do not inflate an offer above the floor', async ({ page }) => {
+  const backup = initialBackup();
+  backup.settings.floor = '224255';
+  backup.offers = [{ name: 'Northwind', base: '200000', bonus: '12.125' }];
+  await page.goto('/#setup');
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByLabel('Import JSON backup').setInputFiles({
+    name: 'workspace.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(backup)),
+  });
+  await expect(page.getByText('Backup imported.')).toBeVisible();
+  await page.getByRole('link', { name: 'Convert', exact: true }).click();
+  await expect(page.locator('.counter').filter({ hasText: 'Northwind' })).toContainText('Below floor');
+});
+
 test('built PWA has a manifest, controls the page and reloads offline', async ({ page, context, browserName }) => {
   await page.goto('/#setup');
   const manifest = await page.locator('link[rel="manifest"]').getAttribute('href');

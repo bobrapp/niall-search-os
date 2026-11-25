@@ -23,7 +23,47 @@ describe('backup', () => {
   it('rejects a backup with a malformed tool budget entry', () => {
     const backup = initialBackup();
     backup.settings.tools = [{ name: 'Fabrikam' }, null];
-    expect(() => importBackup(exportBackup(backup))).toThrow('Backup tool budget must be a list of records.');
+    expect(() => importBackup(JSON.stringify(backup))).toThrow('Backup tool budget must be a list of records.');
+  });
+  it('exports a restorable copy of a legacy workspace with malformed tools', () => {
+    const backup = initialBackup();
+    backup.settings.positioning = 'Northwind';
+    backup.roles = [{ id: 'role', title: 'Head of Craft' }];
+    for (const [tools, expected] of [[null, []], [[null, { id: 'tool', name: 'Contoso', extra: [1] }], [{ id: 'tool', name: 'Contoso', extra: [1] }]]]) {
+      backup.settings.tools = tools;
+      const restored = importBackup(exportBackup(backup));
+      expect(restored).toEqual({ ...backup, settings: { ...backup.settings, tools: expected } });
+      expect(backup.settings.tools).toBe(tools);
+    }
+  });
+  it('restores known links to replaced IDs but leaves ambiguous and unknown references alone', () => {
+    const original = {
+      ...initialBackup(),
+      targets: [{ id: 42, name: 'Northwind' }, { id: 'contoso', name: 'Contoso' }, { id: 12 }, { id: 12 }],
+      contacts: [{ id: '  ', name: 'Avery Example', targetId: 42 }, { id: 'casey', targetId: 'contoso' }, { targetId: 12 }],
+      roles: [{ id: 42, title: 'Head of Craft', targetId: 42 }],
+      outreach: [{ targetId: 42, contactId: '  ', extension: { targetId: 42 } }, { targetId: '', contactId: '' }],
+      engage: [{ targetId: 42 }],
+      interviews: [{ roleId: 42 }],
+      offers: [{ roleId: 42 }],
+      refs: [{ roleId: 42 }],
+    };
+    const restored = importBackup(JSON.stringify(original));
+    const [northwind, contoso, ...ambiguous] = restored.targets;
+    const [avery, casey, unlinked] = restored.contacts;
+    const [role] = restored.roles;
+    expect(northwind.id).toEqual(expect.any(String));
+    expect(avery.id).toEqual(expect.any(String));
+    expect(role.id).toEqual(expect.any(String));
+    expect(ambiguous[0].id).not.toBe(ambiguous[1].id);
+    expect([avery.targetId, role.targetId, restored.outreach[0].targetId, restored.engage[0].targetId]).toEqual(Array(4).fill(northwind.id));
+    expect([restored.interviews[0].roleId, restored.offers[0].roleId, restored.refs[0].roleId]).toEqual(Array(3).fill(role.id));
+    expect(restored.outreach[0]).toMatchObject({ contactId: avery.id, extension: { targetId: 42 } });
+    expect(restored.outreach[1]).toMatchObject({ targetId: '', contactId: '' });
+    expect(contoso.id).toBe('contoso');
+    expect(casey.targetId).toBe('contoso');
+    expect(unlinked.targetId).toBe(12);
+    expect(importBackup(exportBackup(restored))).toEqual(restored);
   });
   it('creates RFC 4122 version 4 IDs without randomUUID', () => {
     const getRandomValues = vi.fn((bytes: Uint8Array) => bytes.fill(255));
@@ -61,5 +101,10 @@ describe('digest and local calculations', () => {
   });
   it('rounds the bonus to the nearest minor unit before adding it', () => {
     expect(offerTotals({ base: '100.50', bonus: '1' })).toEqual({ annual: 101.51, firstYear: 101.51, annualMinor: 10151 });
+  });
+  it('keeps the full bonus rate until rounding the currency amount', () => {
+    expect(offerTotals({ base: '200000', bonus: '12.125' }).annualMinor).toBe(22_425_000);
+    expect(offerTotals({ base: '100', bonus: '1.005' }).annualMinor).toBe(10_101);
+    expect(offerTotals({ base: '100', bonus: '1.00499999999999999999' }).annualMinor).toBe(10_100);
   });
 });
