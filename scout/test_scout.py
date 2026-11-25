@@ -126,6 +126,35 @@ class Filtering(unittest.TestCase):
         jobs = [{"title": t} for t in ("Director of FinOps", "Associate Director", "VP Cloud", "Engineer")]
         self.assertEqual([j["title"] for j in scout.filter_titles(jobs, cfg)], ["Director of FinOps", "VP Cloud"])
 
+    def test_large_search_targets_require_seniority_and_domain_and_exclude_sales(self):
+        cfg = scout.yaml.safe_load((Path(scout.__file__).parent / "config.yaml").read_text())
+        keep = (
+            "Global Head of FinOps",
+            "VP, Cloud Governance",
+            "SVP of AI",
+            "General Manager, Technology Business Management",
+            "Principal Product Manager, AWS Billing",
+            "Chief Information Officer",
+        )
+        drop = (
+            "Accounts Payable Analyst",
+            "Regional Sales Director, Cloud",
+            "Director of Accounts Payable, Cloud",
+            "Director, Employee Benefits",
+            "Cloud Infrastructure Engineer",
+            "Account Executive, Cloud Platform",
+            "Associate Director of AI Governance",
+        )
+        for target in ("Amazon Web Services", "IBM (Apptio)"):
+            with self.subTest(target=target):
+                jobs = [{"company_name": target, "title": title} for title in keep + drop]
+                self.assertEqual([job["title"] for job in scout.filter_titles(jobs, cfg)], list(keep))
+
+    def test_other_targets_keep_the_default_filter(self):
+        cfg = scout.yaml.safe_load((Path(scout.__file__).parent / "config.yaml").read_text())
+        jobs = [{"company_name": "CloudZero", "title": title} for title in ("Cloud Infrastructure Engineer", "Director", "Associate Director")]
+        self.assertEqual([job["title"] for job in scout.filter_titles(jobs, cfg)], ["Cloud Infrastructure Engineer", "Director"])
+
 
 class DryRun(unittest.TestCase):
     def test_dry_run_sends_nothing_and_saves_no_state(self):

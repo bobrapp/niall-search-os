@@ -20,7 +20,8 @@ candidate_profile: profile.md
 digest_to_default: dr.n.sheehan@gmail.com
 digest_from_default: dr.n.sheehan@gmail.com
 
-# Title filter, applied case-insensitively as word matches.
+# Title filter, applied case-insensitively as word matches. Target overrides
+# can require a match from each group and add to the global exclusions.
 title_must_match_any:
   - director
   - head
@@ -48,11 +49,29 @@ targets:
     microsoft: finops cloud cost governance
   - name: Amazon Web Services
     amazon: [finops, cloud financial management, ai governance]
+    title_filters: &large_search_titles
+      title_must_match_groups:
+        - [director, head, vp, svp, evp, vice president, principal, chief, gm, general manager, global lead, global leader, cio, cto, caio]
+        - [finops, fin ops, fin-ops, cloud, aws billing, cost, governance, ai, genai, artificial intelligence, transformation, platform, technology, information officer, apptio, tbm]
+      title_none_any:
+        - accounts payable
+        - account payable
+        - accounts receivable
+        - account manager
+        - account executive
+        - regional sales
+        - sales director
+        - director of sales
+        - sales manager
+        - sales executive
+        - sales development
+        - sales specialist
   - name: Google Cloud
     custom_ats: true
     note: no public job search to read - check google.com/about/careers by hand
   - name: IBM (Apptio)
     ibm: [apptio, finops, director]
+    title_filters: *large_search_titles
   - name: Flexera
     workday: flexerasoftware.wd1.myworkdayjobs.com/flexerasoftware/FlexeraSoftware
   - name: CloudZero
