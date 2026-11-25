@@ -24,7 +24,26 @@ The service worker is only enabled in the production build. Visit once while onl
 
 To run the local proxy, copy `.env.example` to `.env.local` in this directory and set `ANTHROPIC_API_KEY` there. Restart Vite. The no-key path needs no setup. Use the owner's secret manager/environment settings for any hosted deployment. Do not use a `VITE_` prefix or put the key in client code.
 
-`api/ai.mjs` is a Node serverless endpoint for a Vercel-style deployment rooted at `app/`, with Vite output `dist/`. The same handler is available in Vite dev and preview. **Do not enable the key on an unauthenticated origin.** Before enabling remote AI, protect both the web app and `/api/ai` with a private access gateway and verify that an unauthenticated POST cannot reach the function. Do not put an access token into the frontend. The local commands bind to localhost by default. The proxy never logs keys, submitted facts or responses. Only an explicit AI action transmits drafting facts to Anthropic; the rest of the app works offline. Dictation is optional and the browser may use its own online speech service.
+`api/ai.mjs` is a Node serverless endpoint. The same handler is available in Vite dev and preview. Set `ANTHROPIC_MODEL` if you want to use a model other than `claude-sonnet-4-6`. The local commands bind to localhost by default. The proxy never logs keys, submitted facts or responses. Only an explicit AI action transmits drafting facts to Anthropic; the rest of the app works offline. Dictation is optional and the browser may use its own online speech service.
+
+## Deploy on Vercel
+
+After the owner creates or signs into a Vercel Hobby account, select **Add New → Project**, connect GitHub, and import the private `bobrapp/niall-search-os` repository. Use these settings:
+
+| Dashboard field | Value |
+| --- | --- |
+| Production Branch | `main` |
+| Root Directory | `app` |
+| Framework Preset | **Vite** |
+| Node.js Version | **24.x** |
+| Build Command | `npm run build` |
+| Output Directory | `dist` |
+| Install Command | `npm ci` |
+| Environment Variables | Leave unset to start. Optional server-only variables: `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL` (default `claude-sonnet-4-6`). |
+
+A private GitHub repo does **not** make the Vercel production URL private. Check **Settings → Deployment Protection** and verify the exact production URL and `/api/ai` are inaccessible from a signed-out browser before using the deployment for real search data or adding the key. If the Hobby plan doesn't protect that URL, use an owner-approved private gateway that prevents direct access or keep using the local app. Do not enable the key on an unauthenticated preview or production deployment.
+
+For a no-key smoke test, visit `/api/ai` and check for `"enabled": false`. Then open the app once online, disconnect, and reopen it from the Home Screen or installed browser app. Do not set a `VITE_` prefix on either environment variable.
 
 ## Install on your devices
 
