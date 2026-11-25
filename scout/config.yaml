@@ -43,6 +43,10 @@ title_none_any:
 
 max_tokens_per_digest: 4000
 
+# Postings scored below this are counted in the digest but not listed.
+# profile.md defines 4-6 as "plausible but sideways" and 1-3 as below scope.
+min_fit_in_digest: 4
+
 targets:
   - name: Microsoft
     microsoft: finops cloud cost governance

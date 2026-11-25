@@ -347,11 +347,19 @@ def score(jobs, cfg):
     return out
 
 
-def build_digest(scored, failures):
+def split_by_fit(scored, min_fit):
+    """Postings worth showing, and how many scored below the bar. A posting the
+    model could not score is always shown: silence must not hide a real match."""
+    shown = [r for r in scored if not isinstance(r["fit"], (int, float)) or r["fit"] >= min_fit]
+    return shown, len(scored) - len(shown)
+
+
+def build_digest(scored, failures, min_fit=0):
     today = "Today"
     lines = [f"Niall Search OS digest - {today}", ""]
     if not scored:
         lines.append("No new postings matching the filter today.")
+    scored, hidden = split_by_fit(scored, min_fit)
     for item in scored:
         job = item["job"]
         fit = item["fit"] if item["fit"] is not None else "?"
@@ -361,6 +369,9 @@ def build_digest(scored, failures):
         if item["why"]:
             lines.append(f"    Why: {item['why']}")
         lines.append(f"    {job['url']}")
+        lines.append("")
+    if hidden:
+        lines.append(f"{hidden} more new posting(s) scored below {min_fit}/10 and are not listed.")
         lines.append("")
     if failures:
         lines.append("Sources not read this run:")
@@ -394,14 +405,16 @@ def main():
     seen = set(state["seen"])
     fresh = [j for j in jobs if j["id"] not in seen]
     scored = score(fresh, cfg)
-    digest = build_digest(scored, failures)
+    min_fit = int(cfg.get("min_fit_in_digest", 0))
+    digest = build_digest(scored, failures, min_fit)
+    shown = len(split_by_fit(scored, min_fit)[0])
     dry = os.environ.get("DRY_RUN", "").lower() in ("1", "true", "yes")
     if dry:
         print("DRY RUN - no email sent.")
         print(digest)
     else:
         sent = send_digest(
-            f"Niall Search OS: {len(scored)} new posting(s), {today_date()}", digest
+            f"Niall Search OS: {shown} worth a look of {len(scored)} new, {today_date()}", digest
         )
         print(f"digest sent: {sent}")
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
