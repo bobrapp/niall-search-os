@@ -27,7 +27,9 @@ except ImportError:  # scoring is optional; the digest still goes out
 
 ROOT = Path(__file__).parent
 STATE_PATH = ROOT / "state.json"
-MODEL = os.environ.get("REQ_MODEL", "claude-sonnet-4-5")
+MODEL = os.environ.get("REQ_MODEL", "claude-sonnet-5-5")
+UA = {"User-Agent": "Mozilla/5.0 (compatible; niall-scout/1.0)"}
+SEARCH_LIMIT = 25  # newest results kept per search query
 
 
 def compile_filters(cfg):
@@ -129,8 +131,7 @@ def fetch_workday(token: str):
         resp = requests.post(
             url,
             json={"appliedFacets": {}, "limit": page, "offset": offset, "searchText": ""},
-            # Workday answers the default python-requests agent with 429.
-            headers={"User-Agent": "Mozilla/5.0 (compatible; niall-scout/1.0)"},
+            headers=UA,  # Workday answers the default python-requests agent with 429
             timeout=30,
         )
         resp.raise_for_status()
@@ -154,12 +155,100 @@ def fetch_workday(token: str):
     return jobs
 
 
+def _queries(token):
+    """Search sources take one query or a list of them."""
+    return [token] if isinstance(token, str) else list(token)
+
+
+def fetch_amazon(token):
+    jobs = {}
+    for query in _queries(token):
+        resp = requests.get(
+            "https://www.amazon.jobs/en/search.json",
+            params={"base_query": query, "result_limit": SEARCH_LIMIT, "sort": "recent"},
+            headers=UA,
+            timeout=30,
+        )
+        resp.raise_for_status()
+        for item in resp.json().get("jobs", []):
+            key = f"az:{item.get('id_icims')}"
+            jobs[key] = {
+                "id": key,
+                "title": item.get("title") or "",
+                "location": item.get("normalized_location") or "",
+                "url": "https://www.amazon.jobs" + (item.get("job_path") or ""),
+                "company": "amazon",
+                "source": "amazon",
+            }
+    return list(jobs.values())
+
+
+def fetch_microsoft(token):
+    # One request only: this endpoint answers a second quick request with 429.
+    query = " ".join(_queries(token))
+    resp = requests.get(
+        "https://apply.careers.microsoft.com/api/pcsx/search",
+        params={"domain": "microsoft.com", "query": query, "start": 0, "num": SEARCH_LIMIT},
+        headers=UA,
+        timeout=30,
+    )
+    resp.raise_for_status()
+    jobs = []
+    for item in (resp.json().get("data") or {}).get("positions", []):
+        jobs.append(
+            {
+                "id": f"ms:{item.get('id')}",
+                "title": item.get("name") or "",
+                "location": "; ".join(item.get("standardizedLocations") or item.get("locations") or []),
+                "url": "https://apply.careers.microsoft.com" + (item.get("positionUrl") or ""),
+                "company": "microsoft",
+                "source": "microsoft",
+            }
+        )
+    return jobs
+
+
+def fetch_ibm(token):
+    jobs = {}
+    for query in _queries(token):
+        resp = requests.post(
+            "https://www-api.ibm.com/search/api/v2",
+            json={
+                "appId": "careers",
+                "scopes": ["careers2"],
+                "query": {"bool": {"must": [{"simple_query_string": {
+                    "query": query, "fields": ["title^3", "description"]}}]}},
+                "size": SEARCH_LIMIT,
+                "from": 0,
+                "_source": ["title", "url", "field_keyword_19"],
+            },
+            headers=UA,
+            timeout=30,
+        )
+        resp.raise_for_status()
+        for hit in (resp.json().get("hits") or {}).get("hits", []):
+            src = hit.get("_source") or {}
+            key = f"ibm:{hit.get('_id')}"
+            jobs[key] = {
+                "id": key,
+                "title": src.get("title") or "",
+                "location": src.get("field_keyword_19") or "",
+                "url": src.get("url") or "",
+                "company": "ibm",
+                "source": "ibm",
+            }
+    return list(jobs.values())
+
+
 FETCHERS = {
     "greenhouse": fetch_greenhouse,
     "lever": fetch_lever,
     "ashby": fetch_ashby,
     "bamboohr": fetch_bamboohr,
     "workday": fetch_workday,
+    "amazon": fetch_amazon,
+    "microsoft": fetch_microsoft,
+    "ibm": fetch_ibm,
 }
 
 
@@ -179,17 +268,16 @@ def collect(cfg):
         got = False
         for kind, token in candidates:
             try:
-                jobs.extend(FETCHERS[kind](token))
+                found = FETCHERS[kind](token)
+                for job in found:
+                    job["company_name"] = name
+                jobs.extend(found)
                 got = True
                 break
             except Exception as exc:  # noqa: BLE001 - report, keep going
                 last = f"{name} ({kind}:{token}): {type(exc).__name__}: {exc}"
         if not got:
             failures.append(last if candidates else f"{name}: no source configured")
-        else:
-            for job in jobs:
-                if job["company"] == token:
-                    job["company_name"] = name
     return jobs, failures
 
 
@@ -254,6 +342,8 @@ def score(jobs, cfg):
     for i, job in enumerate(jobs):
         item = scores.get(i + 1, {})
         out.append({"job": job, "fit": item.get("fit"), "why": item.get("why", "")})
+    # Best fit first; unscored postings last, in the order they were found.
+    out.sort(key=lambda r: -r["fit"] if isinstance(r["fit"], (int, float)) else 1)
     return out
 
 
