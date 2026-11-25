@@ -127,6 +127,28 @@ class Filtering(unittest.TestCase):
         self.assertEqual([j["title"] for j in scout.filter_titles(jobs, cfg)], ["Director of FinOps", "VP Cloud"])
 
 
+class Digest(unittest.TestCase):
+    def rows(self):
+        job = lambda t: {"title": t, "company_name": "X", "location": "", "url": "u"}
+        return [{"job": job("Good"), "fit": 8, "why": ""}, {"job": job("Edge"), "fit": 4, "why": ""},
+                {"job": job("Weak"), "fit": 3, "why": ""}, {"job": job("Unscored"), "fit": None, "why": ""}]
+
+    def test_low_scores_are_counted_not_listed(self):
+        text = scout.build_digest(self.rows(), [], min_fit=4)
+        self.assertIn("Good", text)
+        self.assertIn("Edge", text)
+        self.assertNotIn("Weak", text)
+        self.assertIn("1 more new posting(s) scored below 4/10", text)
+
+    def test_unscored_postings_are_always_listed(self):
+        self.assertIn("Unscored", scout.build_digest(self.rows(), [], min_fit=9))
+
+    def test_no_threshold_lists_everything(self):
+        text = scout.build_digest(self.rows(), [])
+        self.assertIn("Weak", text)
+        self.assertNotIn("not listed", text)
+
+
 class DryRun(unittest.TestCase):
     def test_dry_run_sends_nothing_and_saves_no_state(self):
         job = {"id": "x:1", "title": "VP Cloud", "location": "", "url": "u", "company": "x", "source": "x", "company_name": "X"}
