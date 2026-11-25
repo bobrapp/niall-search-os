@@ -6,7 +6,7 @@ import type { Backup } from './data';
 import { Board, Insights, ThisWeek } from './reviews';
 import { Engage, MapScreen, Outreach, Signal } from './search';
 import { Setup } from './setup';
-import { indexedWorkspace } from './storage';
+import { indexedWorkspace, WorkspaceConflict } from './storage';
 import { WorkspaceContext } from './workspace';
 import './styles.css';
 
@@ -21,9 +21,14 @@ function App() {
   const [screen, setScreen] = useState(current);
   const [data, setData] = useState<Backup | null>(null), [error, setError] = useState('');
   const latest = useRef<Backup | null>(null), writes = useRef(Promise.resolve());
+  const revision = useRef(0);
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
-    void indexedWorkspace.load().then(workspace => { latest.current = workspace; setData(workspace); })
+    void indexedWorkspace.load().then(workspace => {
+      revision.current = workspace.revision;
+      latest.current = workspace.data;
+      setData(workspace.data);
+    })
       .catch(() => setError('Local storage could not open. Check that this browser allows IndexedDB, then reload.'));
     const navigate = () => {
       setScreen(current());
@@ -38,8 +43,12 @@ function App() {
     latest.current = snapshot;
     setData(snapshot);
     writes.current = writes.current.then(async () => {
-      try { await indexedWorkspace.save(snapshot); setError(''); }
-      catch { setError('Changes could not be saved to this device. Export a backup before leaving.'); }
+      try { revision.current = await indexedWorkspace.save(snapshot, revision.current); setError(''); }
+      catch (error) {
+        setError(error instanceof WorkspaceConflict
+          ? 'Another tab saved changes first. Your changes in this tab are not saved. Export a backup to keep them, then reload.'
+          : 'Changes could not be saved to this device. Export a backup before leaving.');
+      }
     });
   }, []);
   const [id, title, Screen] = screen;

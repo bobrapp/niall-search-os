@@ -3,6 +3,7 @@ test touches the network, the Anthropic API or a mailbox.
 
 Run from the repo root:  python -m unittest discover -s scout
 """
+import io
 import os
 import tempfile
 import unittest
@@ -148,6 +149,28 @@ class Digest(unittest.TestCase):
         self.assertIn("Weak", text)
         self.assertNotIn("not listed", text)
 
+    def test_source_errors_stay_in_the_log_not_the_email_or_summary(self):
+        failure = "Fabrikam: 503 Server Error for url: https://example.invalid/source"
+        with tempfile.TemporaryDirectory() as tmp:
+            summary = Path(tmp) / "summary.md"
+            env = {"GITHUB_STEP_SUMMARY": str(summary), "SMTP_HOST": "smtp.example.invalid",
+                   "DIGEST_FROM": "scout@example.invalid", "DIGEST_TO": "reader@example.invalid"}
+            with mock.patch.object(scout, "STATE_PATH", Path(tmp) / "state.json"), \
+                 mock.patch.object(scout, "collect", return_value=([], [failure])), \
+                 mock.patch.object(scout.smtplib, "SMTP") as smtp, \
+                 mock.patch("sys.stdout", new_callable=io.StringIO) as log, \
+                 mock.patch.dict(os.environ, env, clear=True):
+                scout.main()
+            sent = smtp.return_value.__enter__.return_value.send_message
+            sent.assert_called_once()
+            message = sent.call_args.args[0]
+            self.assertEqual(message["To"], env["DIGEST_TO"])
+            for text in (message.get_content(), summary.read_text()):
+                self.assertEqual(text.splitlines().count("A few sources could not be read today."), 1)
+                self.assertNotIn("Sources not read this run", text)
+                self.assertNotIn("503", text)
+                self.assertNotIn("https://example.invalid/source", text)
+            self.assertIn(f"Sources not read this run:\n  - {failure}", log.getvalue())
 
 class DryRun(unittest.TestCase):
     def test_dry_run_sends_nothing_and_saves_no_state(self):

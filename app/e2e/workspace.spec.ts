@@ -80,6 +80,8 @@ test('backup survives import, IndexedDB reload and download', async ({ page }) =
   const original = initialBackup();
   original.settings.positioning = 'Contoso';
   original.targets = [{ name: 'Fabrikam', extension: { keep: [true, 1] } }];
+  original.contacts = [{ name: 'Avery Example' }];
+  original.roles = [{ title: 'Head of Craft' }];
   original.refs.push({ name: 'Casey Example', example: true, extension: false });
   await page.goto('/#setup');
   page.once('dialog', dialog => dialog.accept());
@@ -92,7 +94,48 @@ test('backup survives import, IndexedDB reload and download', async ({ page }) =
   const downloaded = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Export JSON backup' }).click();
   const download = await downloaded;
-  expect(JSON.parse(await readFile((await download.path())!, 'utf8'))).toEqual(original);
+  const restored = JSON.parse(await readFile((await download.path())!, 'utf8'));
+  expect(restored).toMatchObject(original);
+  expect(restored.targets[0].id).toEqual(expect.any(String));
+  expect(restored.refs[0].id).toEqual(expect.any(String));
+  await page.getByRole('link', { name: 'Outreach', exact: true }).click();
+  await page.getByRole('button', { name: 'Add outreach' }).click();
+  const target = page.getByRole('combobox', { name: 'Target', exact: true });
+  const contact = page.getByRole('combobox', { name: 'Saved contact', exact: true });
+  await target.selectOption({ label: 'Fabrikam' });
+  await contact.selectOption({ label: 'Avery Example' });
+  await expect(target).toHaveValue(restored.targets[0].id);
+  await expect(contact).toHaveValue(restored.contacts[0].id);
+  await page.getByRole('link', { name: 'Signal', exact: true }).click();
+  const role = page.getByRole('combobox', { name: 'Role', exact: true });
+  await role.selectOption({ label: 'Head of Craft' });
+  await expect(role).toHaveValue(restored.roles[0].id);
+});
+
+test('a stale tab cannot overwrite another tab’s saved changes', async ({ page, context }) => {
+  const second = await context.newPage();
+  for (const tab of [page, second]) {
+    await tab.goto('/#setup');
+    await expect(tab.getByLabel('Positioning', { exact: true })).toBeVisible();
+  }
+  await page.getByLabel('Positioning', { exact: true }).fill('Northwind');
+  await expect.poll(() => page.evaluate(() => new Promise<string | undefined>((resolve, reject) => {
+    const open = indexedDB.open('niall-search-os');
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => {
+      const db = open.result;
+      const transaction = db.transaction('workspace');
+      const read = transaction.objectStore('workspace').get('current');
+      transaction.oncomplete = () => { db.close(); resolve(read.result?.settings.positioning); };
+      transaction.onabort = () => { db.close(); reject(transaction.error); };
+    };
+  }))).toBe('Northwind');
+  await second.getByLabel('Resume', { exact: true }).fill('Fabrikam');
+  await expect(second.getByText(/Another tab saved changes first/)).toBeVisible();
+  await expect(second.getByLabel('Resume', { exact: true })).toHaveValue('Fabrikam');
+  await second.reload();
+  await expect(second.getByLabel('Positioning', { exact: true })).toHaveValue('Northwind');
+  await expect(second.getByLabel('Resume', { exact: true })).toHaveValue('');
 });
 
 test.describe('AI proxy controls', () => {
@@ -103,7 +146,7 @@ test.describe('AI proxy controls', () => {
       const request = route.request();
       if (request.method() === 'GET') {
         await route.fulfill({ json: { enabled: true, accessCodeRequired: true, reason: '' } });
-      } else if (request.headers()['x-ai-access-code'] === 'fictional-code') {
+      } else if (request.headers()['x-ai-access-code-base64'] === Buffer.from('fictional-code-€').toString('base64')) {
         await route.fulfill({ json: { draft: 'Northwind draft' } });
       } else await route.fulfill({ status: 401 });
     });
@@ -128,15 +171,52 @@ test.describe('AI proxy controls', () => {
     await expect(draft).toBeDisabled();
     await setup.click();
     await expect(page.getByRole('heading', { name: 'Tools & Setup' })).toBeFocused();
-    await code.fill('fictional-code');
+    await code.fill('fictional-code-€');
     await save.click();
     await page.reload();
-    await expect(code).toHaveValue('fictional-code');
+    await expect(code).toHaveValue('fictional-code-€');
     await expect(code).toHaveAttribute('type', 'password');
     await signal.click();
     await draft.click();
     await expect(page.getByRole('textbox', { name: 'AI gap notes result' })).toHaveValue('Northwind draft');
   });
+
+  test('a posted post can generate AI text but cannot apply it as a draft', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('niall-search-os.ai-access-code', 'fictional-code'));
+    await page.route('**/api/ai', route => route.fulfill({
+      json: route.request().method() === 'GET'
+        ? { enabled: true, accessCodeRequired: true, reason: '' }
+        : { draft: 'Northwind draft' },
+    }));
+    await page.goto('/#engage');
+    await page.getByRole('button', { name: 'Add post' }).click();
+    await page.getByLabel('Post text', { exact: true }).fill('Fabrikam post');
+    await page.getByRole('button', { name: 'AI post draft', exact: true }).click();
+    const useDraft = page.getByRole('button', { name: 'Use draft', exact: true });
+    await expect(useDraft).toBeVisible();
+    await page.getByRole('button', { name: 'Approve post' }).click();
+    await page.getByRole('button', { name: 'Mark posted' }).click();
+    await expect(page.getByText(/^Posted \d{4}-\d{2}-\d{2}$/)).toBeVisible();
+    await expect(page.getByRole('textbox', { name: 'AI post draft result', exact: true })).toHaveValue('Northwind draft');
+    await expect(page.getByLabel('Post text', { exact: true })).toHaveValue('Fabrikam post');
+    await expect(useDraft).toHaveCount(0);
+  });
+});
+
+test('an offer with bonus exactly at each guardrail qualifies', async ({ page }) => {
+  const backup = initialBackup();
+  backup.settings.floor = '115';
+  backup.settings.compTarget = '230';
+  backup.offers = [{ name: 'Northwind', base: '100', bonus: '15' }, { name: 'Fabrikam', base: '200', bonus: '15' }];
+  await page.goto('/#setup');
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByLabel('Import JSON backup').setInputFiles({
+    name: 'workspace.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(backup)),
+  });
+  await expect(page.getByText('Backup imported.')).toBeVisible();
+  await page.getByRole('link', { name: 'Convert', exact: true }).click();
+  await expect(page.locator('.counter').filter({ hasText: 'Northwind' })).toContainText('Meets floor');
+  await expect(page.locator('.counter').filter({ hasText: 'Fabrikam' })).toContainText('Meets target');
 });
 
 test('built PWA has a manifest, controls the page and reloads offline', async ({ page, context, browserName }) => {

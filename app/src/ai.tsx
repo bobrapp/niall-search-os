@@ -87,7 +87,10 @@ export function Draft({ task, label, facts, onUse }: { task: string; label: stri
     setAttempted(true); setRunning(true); setNotice('');
     try {
       const response = await fetch('/api/ai', {
-        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-AI-Access-Code': status.accessCode },
+        method: 'POST', headers: {
+          'Content-Type': 'application/json',
+          'X-AI-Access-Code-Base64': btoa(Array.from(new TextEncoder().encode(status.accessCode), byte => String.fromCharCode(byte)).join('')),
+        },
         signal: controller.signal, body: JSON.stringify({ task, facts: JSON.stringify(facts) }),
       });
       if (response.status === 401) {

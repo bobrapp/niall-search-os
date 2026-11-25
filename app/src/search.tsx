@@ -104,7 +104,7 @@ export function Engage() {
         onField={(row, key, text) => row.status === 'Approved' ? { [key]: text, status: 'Draft' } : { [key]: text }}
         fields={[{ key: 'title', label: 'Post title' }, { key: 'pillar', label: 'Pillar', options: pillars }, { key: 'body', label: 'Post text', type: 'long' }]}
         after={(row, edit) => <>
-          <Draft task="post" label="AI post draft" facts={{ pillar: row.pillar, topic: row.title, suppliedDraft: row.body, positioning: data.settings.positioning }} onUse={draft => edit({ body: draft, status: 'Draft', postedOn: '' })} />
+          <Draft task="post" label="AI post draft" facts={{ pillar: row.pillar, topic: row.title, suppliedDraft: row.body, positioning: data.settings.positioning }} onUse={row.status === 'Posted' ? undefined : draft => edit({ body: draft, status: 'Draft', postedOn: '' })} />
           <div className="actions"><span className="tag">{value(row, 'status') || 'Draft'}</span>
             <button disabled={!value(row, 'body').trim() || row.status === 'Approved' || row.status === 'Posted'} onClick={() => edit({ status: 'Approved' })}>Approve post</button>
             {['Approved', 'Posted'].includes(value(row, 'status')) && <CopyText text={value(row, 'body')} />}
