@@ -34,10 +34,15 @@ SEARCH_LIMIT = 25  # newest results kept per search query
 
 def compile_filters(cfg):
     def rx(words):
+        if not words:
+            return re.compile(r"(?!)")
         parts = [re.escape(w) for w in words]
         return re.compile(r"\b(?:" + "|".join(parts) + r")\b", re.IGNORECASE)
 
-    return rx(cfg["title_must_match_any"]), rx(cfg["title_none_any"])
+    groups = cfg.get("title_must_match_groups")
+    if groups is None:
+        groups = [cfg["title_must_match_any"]]
+    return [rx(group) for group in groups], rx(cfg["title_none_any"])
 
 
 def fetch_greenhouse(token: str):
@@ -282,13 +287,20 @@ def collect(cfg):
 
 
 def filter_titles(jobs, cfg):
-    must, none = compile_filters(cfg)
+    default = compile_filters(cfg)
+    by_target = {}
+    for target in cfg.get("targets", []):
+        if overrides := target.get("title_filters"):
+            by_target[target["name"]] = compile_filters({
+                **cfg,
+                **overrides,
+                "title_none_any": cfg["title_none_any"] + overrides.get("title_none_any", []),
+            })
     kept = []
     for job in jobs:
+        must, none = by_target.get(job.get("company_name"), default)
         t = job["title"]
-        if none.search(t):
-            continue
-        if must.search(t):
+        if not none.search(t) and all(group.search(t) for group in must):
             kept.append(job)
     return kept
 
