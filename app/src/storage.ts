@@ -13,8 +13,10 @@ export interface SyncProvider {
 
 function database() {
   return new Promise<IDBDatabase>((resolve, reject) => {
-    const request = indexedDB.open('niall-search-os', 1);
-    request.onupgradeneeded = () => request.result.createObjectStore('workspace');
+    const request = indexedDB.open('niall-search-os', 2);
+    request.onupgradeneeded = event => {
+      if (event.oldVersion === 0) request.result.createObjectStore('workspace');
+    };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });

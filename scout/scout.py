@@ -253,11 +253,11 @@ FETCHERS = {
 
 
 def collect(cfg):
-    jobs, failures = [], []
+    jobs, failures, manual_checks = [], [], []
     for target in cfg["targets"]:
         name = target["name"]
         if target.get("custom_ats"):
-            failures.append(f"{name}: {target.get('note') or 'custom ATS, skipped in v1 (add a source token when known)'}")
+            manual_checks.append(f"{name}: {target.get('note') or 'custom ATS, skipped in v1 (add a source token when known)'}")
             continue
         candidates = [(kind, target[kind]) for kind in FETCHERS if target.get(kind)][:1]
         if not candidates:
@@ -278,7 +278,7 @@ def collect(cfg):
                 last = f"{name} ({kind}:{token}): {type(exc).__name__}: {exc}"
         if not got:
             failures.append(last if candidates else f"{name}: no source configured")
-    return jobs, failures
+    return jobs, failures, manual_checks
 
 
 def filter_titles(jobs, cfg):
@@ -398,7 +398,7 @@ def send_digest(subject, text):
 
 def main():
     cfg = yaml.safe_load((ROOT / "config.yaml").read_text())
-    jobs, failures = collect(cfg)
+    jobs, failures, manual_checks = collect(cfg)
     jobs = filter_titles(jobs, cfg)
     state = load_state()
     seen = set(state["seen"])
@@ -423,6 +423,10 @@ def main():
         print("Sources not read this run:")
         for failure in failures:
             print(f"  - {failure}")
+    if manual_checks:
+        print("Sources to check manually:")
+        for check in manual_checks:
+            print(f"  - {check}")
     if not dry:  # a dry run must not mark postings as seen, or the real digest misses them
         seen.update(j["id"] for j in fresh)
         save_state(sorted(seen))

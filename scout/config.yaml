@@ -13,7 +13,7 @@
 #   ibm:        careers.ibm.com search
 # With no source set the scout guesses a Greenhouse token from the company name;
 # a 404 means the guess is wrong - confirm the real one from that company's job URLs.
-# custom_ats: true skips a target and reports it in the digest footer (see "note").
+# custom_ats: true lists a target separately for manual checking in the run log.
 # Tokens below were confirmed against each company's careers page on 2026-11-24.
 
 candidate_profile: profile.md
