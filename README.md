@@ -17,7 +17,7 @@ Automated scout for Niall Sheehan's executive job search. A scheduled GitHub Act
 
 ## What runs
 
-- `scout/scout.py` - pulls postings from each target's configured source (Greenhouse and Lever boards for v1), filters titles to executive/AI/FinOps scope, dedupes, scores with Claude (`claude-sonnet-4-5`), and emails the digest via SMTP.
+- `scout/scout.py` - pulls postings from each target's configured source (Greenhouse and Lever boards for v1), filters titles to executive/AI/FinOps scope, dedupes, scores with Claude (`claude-sonnet-5-5`), and emails the digest via SMTP.
 - `scout/config.yaml` - the ten targets and their sources. Targets on custom ATS platforms (Microsoft, Amazon, Google, IBM) are marked and skipped in v1; add a Greenhouse or Lever token when one is known.
 - `scout/parse_connections.py` - reads a LinkedIn `connections.csv` export and prints per-target connection counts plus a ready-to-paste CSV for the tracker's Contacts tab.
 

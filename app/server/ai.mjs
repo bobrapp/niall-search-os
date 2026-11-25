@@ -67,7 +67,7 @@ export async function handleAI(request, response, env) {
     const upstream = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST', signal: controller.signal,
       headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: env.ANTHROPIC_MODEL?.trim() || 'claude-sonnet-4-6', max_tokens: 1800, system: policy, messages: [{ role: 'user', content: tasks[body.task] + '\n\nSupplied facts:\n' + body.facts }] }),
+      body: JSON.stringify({ model: env.ANTHROPIC_MODEL?.trim() || 'claude-sonnet-5-5', max_tokens: 1800, system: policy, messages: [{ role: 'user', content: tasks[body.task] + '\n\nSupplied facts:\n' + body.facts }] }),
     });
     if (!upstream.ok) return reply(502, { error: 'Anthropic could not complete the draft. Check the server configuration or retry.' });
     const result = await upstream.json();

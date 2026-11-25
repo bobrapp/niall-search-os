@@ -24,7 +24,7 @@ The service worker is only enabled in the production build. Visit once while onl
 
 To run the local proxy, copy `.env.example` to `.env.local` in this directory and set both `ANTHROPIC_API_KEY` and `AI_ACCESS_CODE` there. Generate a separate strong code (for example, `openssl rand -hex 32`), restart Vite, then paste the code into **Tools & Setup → AI drafting access** once per browser. Never enter the Anthropic key in the app. The access code stays in browser storage and is not included in backups. Without either server value the workspace still works and AI is off.
 
-`api/ai.mjs` is a Node serverless endpoint. The same handler is available in Vite dev and preview. Set `ANTHROPIC_MODEL` if you want to use a model other than `claude-sonnet-4-6`. The local commands bind to localhost by default. The proxy never logs keys, submitted facts or responses. Only an explicit AI action transmits drafting facts to Anthropic; the rest of the app works offline. Dictation is optional and the browser may use its own online speech service.
+`api/ai.mjs` is a Node serverless endpoint. The same handler is available in Vite dev and preview. Set `ANTHROPIC_MODEL` if you want to use a model other than `claude-sonnet-5-5`. The local commands bind to localhost by default. The proxy never logs keys, submitted facts or responses. Only an explicit AI action transmits drafting facts to Anthropic; the rest of the app works offline. Dictation is optional and the browser may use its own online speech service.
 
 ## Deploy on Vercel
 
@@ -39,7 +39,7 @@ After the owner creates or signs into a Vercel Hobby account, select **Add New �
 | Build Command | `npm run build` |
 | Output Directory | `dist` |
 | Install Command | `npm ci` |
-| Environment Variables | Leave unset to start. To enable AI, set `ANTHROPIC_API_KEY` and `AI_ACCESS_CODE` in Production, then redeploy. Optionally set `ANTHROPIC_MODEL` (default `claude-sonnet-4-6`). Do not give these variables a `VITE_` prefix. |
+| Environment Variables | Leave unset to start. To enable AI, set `ANTHROPIC_API_KEY` and `AI_ACCESS_CODE` in Production, then redeploy. Optionally set `ANTHROPIC_MODEL` (default `claude-sonnet-5-5`). Do not give these variables a `VITE_` prefix. |
 
 A private GitHub repo does **not** make the Vercel production URL private. A public URL serves the app shell; workspace data is stored in each browser. The AI access code protects drafting requests, not access to the app shell. If the shell itself must be private, verify **Settings → Deployment Protection** covers the exact production URL or use an owner-approved private gateway.
 

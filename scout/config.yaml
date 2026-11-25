@@ -5,6 +5,12 @@
 #   ashby:      jobs.ashbyhq.com board name - CASE-SENSITIVE ("Vantage", not "vantage")
 #   bamboohr:   the <name> in <name>.bamboohr.com
 #   workday:    "<host>/<tenant>/<site>" from the careers URL
+# Search sources, for employers too large to list whole. Each takes one query or a
+# list of queries and keeps the newest results per query:
+#   amazon:     amazon.jobs search
+#   microsoft:  careers search - ONE request per run (it rate-limits), so the
+#               queries are joined into a single search
+#   ibm:        careers.ibm.com search
 # With no source set the scout guesses a Greenhouse token from the company name;
 # a 404 means the guess is wrong - confirm the real one from that company's job URLs.
 # custom_ats: true skips a target and reports it in the digest footer (see "note").
@@ -39,22 +45,14 @@ max_tokens_per_digest: 4000
 
 targets:
   - name: Microsoft
-    greenhouse: null
-    lever: null
-    custom_ats: true
+    microsoft: finops cloud cost governance
   - name: Amazon Web Services
-    greenhouse: null
-    lever: null
-    custom_ats: true
+    amazon: [finops, cloud financial management, ai governance]
   - name: Google Cloud
-    greenhouse: null
-    lever: null
     custom_ats: true
+    note: no public job search to read - check google.com/about/careers by hand
   - name: IBM (Apptio)
-    greenhouse: null
-    lever: null
-    custom_ats: true
-    alt_names: [ibm]
+    ibm: [apptio, finops, director]
   - name: Flexera
     workday: flexerasoftware.wd1.myworkdayjobs.com/flexerasoftware/FlexeraSoftware
   - name: CloudZero

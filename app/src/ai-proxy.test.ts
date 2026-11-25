@@ -50,7 +50,7 @@ describe('Vercel AI function', () => {
     });
   });
 
-  it.each([['', 'claude-sonnet-4-6'], [' fictional-model ', 'fictional-model']])('uses the configured model (%j)', async (model, expected) => {
+  it.each([['', 'claude-sonnet-5-5'], [' fictional-model ', 'fictional-model']])('uses the configured model (%j)', async (model, expected) => {
     vi.stubEnv('ANTHROPIC_API_KEY', 'test-only');
     vi.stubEnv('AI_ACCESS_CODE', 'fictional-code');
     vi.stubEnv('ANTHROPIC_MODEL', model);
