@@ -95,6 +95,50 @@ test('backup survives import, IndexedDB reload and download', async ({ page }) =
   expect(JSON.parse(await readFile((await download.path())!, 'utf8'))).toEqual(original);
 });
 
+test.describe('AI proxy controls', () => {
+  test.use({ serviceWorkers: 'block' });
+
+  test('AI requires the local Setup code and handles rejection', async ({ page }) => {
+    await page.route('**/api/ai', async route => {
+      const request = route.request();
+      if (request.method() === 'GET') {
+        await route.fulfill({ json: { enabled: true, accessCodeRequired: true, reason: '' } });
+      } else if (request.headers()['x-ai-access-code'] === 'fictional-code') {
+        await route.fulfill({ json: { draft: 'Northwind draft' } });
+      } else await route.fulfill({ status: 401 });
+    });
+    await page.goto('/#signal');
+    const draft = page.getByRole('button', { name: 'AI gap notes', exact: true });
+    await expect(page.getByText('Enter the AI access code in Setup to enable drafting.').first()).toBeVisible();
+    await expect(draft).toBeDisabled();
+    const setup = page.getByRole('link', { name: 'Tools & Setup' });
+    const signal = page.getByRole('link', { name: 'Signal', exact: true });
+    const code = page.getByLabel('AI access code', { exact: true });
+    const save = page.getByRole('button', { name: 'Save AI access code' });
+    await setup.click();
+    await expect(page.getByRole('heading', { name: 'Tools & Setup' })).toBeFocused();
+    await expect(code).toHaveAttribute('type', 'password');
+    await code.fill('incorrect-code');
+    await page.getByRole('button', { name: 'Show AI access code' }).click();
+    await expect(code).toHaveAttribute('type', 'text');
+    await save.click();
+    await signal.click();
+    await draft.click();
+    await expect(page.getByText('AI access code rejected. Enter a valid access code in Setup.').first()).toBeVisible();
+    await expect(draft).toBeDisabled();
+    await setup.click();
+    await expect(page.getByRole('heading', { name: 'Tools & Setup' })).toBeFocused();
+    await code.fill('fictional-code');
+    await save.click();
+    await page.reload();
+    await expect(code).toHaveValue('fictional-code');
+    await expect(code).toHaveAttribute('type', 'password');
+    await signal.click();
+    await draft.click();
+    await expect(page.getByRole('textbox', { name: 'AI gap notes result' })).toHaveValue('Northwind draft');
+  });
+});
+
 test('built PWA has a manifest, controls the page and reloads offline', async ({ page, context, browserName }) => {
   await page.goto('/#setup');
   const manifest = await page.locator('link[rel="manifest"]').getAttribute('href');

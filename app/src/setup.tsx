@@ -1,4 +1,5 @@
 import { useState, type ChangeEvent } from 'react';
+import { AISetup } from './ai';
 import { defaultSettings, exportBackup, importBackup, newRow, removeExamples, value, type Row } from './data';
 import { exportCsv, importConnections } from './imports';
 import { download, Empty, Fields, Panel, type Field } from './ui';
@@ -71,6 +72,7 @@ export function Setup() {
         <label className="field">Import LinkedIn connections CSV<input type="file" accept=".csv,text/csv" onChange={e => void readFile(e, 'connections')} /></label>
       </div>{notice && <p role="status">{notice}</p>}
     </Panel>
+    <AISetup />
     <Panel title="Positioning and scripts"><Fields row={settings} fields={settingsFields} edit={set} /></Panel>
     <Panel title="Cadence and compensation"><Fields row={settings} fields={goalFields} edit={set} /></Panel>
     <Panel title="Tool budget" help="Planning only. This workspace never purchases or subscribes to tools.">
