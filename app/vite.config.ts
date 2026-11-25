@@ -4,7 +4,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 import { handleAI } from './server/ai.mjs';
 
 export default defineConfig(({ mode }) => {
-  const env = { ...loadEnv(mode, process.cwd(), 'ANTHROPIC_'), ...process.env };
+  const env = { ...loadEnv(mode, process.cwd(), ['ANTHROPIC_', 'AI_ACCESS_CODE']), ...process.env };
   const ai: Connect.NextHandleFunction = (request, response, next) => {
     if (request.url?.split('?')[0] !== '/api/ai') return next();
     void handleAI(request, response, env);

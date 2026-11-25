@@ -22,7 +22,7 @@ The service worker is only enabled in the production build. Visit once while onl
 
 ### Optional AI
 
-To run the local proxy, copy `.env.example` to `.env.local` in this directory and set `ANTHROPIC_API_KEY` there. Restart Vite. The no-key path needs no setup. Use the owner's secret manager/environment settings for any hosted deployment. Do not use a `VITE_` prefix or put the key in client code.
+To run the local proxy, copy `.env.example` to `.env.local` in this directory and set both `ANTHROPIC_API_KEY` and `AI_ACCESS_CODE` there. Generate a separate strong code (for example, `openssl rand -hex 32`), restart Vite, then paste the code into **Tools & Setup → AI drafting access** once per browser. Never enter the Anthropic key in the app. The access code stays in browser storage and is not included in backups. Without either server value the workspace still works and AI is off.
 
 `api/ai.mjs` is a Node serverless endpoint. The same handler is available in Vite dev and preview. Set `ANTHROPIC_MODEL` if you want to use a model other than `claude-sonnet-4-6`. The local commands bind to localhost by default. The proxy never logs keys, submitted facts or responses. Only an explicit AI action transmits drafting facts to Anthropic; the rest of the app works offline. Dictation is optional and the browser may use its own online speech service.
 
@@ -39,11 +39,11 @@ After the owner creates or signs into a Vercel Hobby account, select **Add New �
 | Build Command | `npm run build` |
 | Output Directory | `dist` |
 | Install Command | `npm ci` |
-| Environment Variables | Leave unset to start. Optional server-only variables: `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL` (default `claude-sonnet-4-6`). |
+| Environment Variables | Leave unset to start. To enable AI, set `ANTHROPIC_API_KEY` and `AI_ACCESS_CODE` in Production, then redeploy. Optionally set `ANTHROPIC_MODEL` (default `claude-sonnet-4-6`). Do not give these variables a `VITE_` prefix. |
 
-A private GitHub repo does **not** make the Vercel production URL private. Check **Settings → Deployment Protection** and verify the exact production URL and `/api/ai` are inaccessible from a signed-out browser before using the deployment for real search data or adding the key. If the Hobby plan doesn't protect that URL, use an owner-approved private gateway that prevents direct access or keep using the local app. Do not enable the key on an unauthenticated preview or production deployment.
+A private GitHub repo does **not** make the Vercel production URL private. A public URL serves the app shell; workspace data is stored in each browser. The AI access code protects drafting requests, not access to the app shell. If the shell itself must be private, verify **Settings → Deployment Protection** covers the exact production URL or use an owner-approved private gateway.
 
-For a no-key smoke test, visit `/api/ai` and check for `"enabled": false`. Then open the app once online, disconnect, and reopen it from the Home Screen or installed browser app. Do not set a `VITE_` prefix on either environment variable.
+For a no-key smoke test, visit `/api/ai` and check for `"enabled": false`. Once configured, a POST without the access code must return `401`. The proxy limits draft payloads to 180 KB and allows at most 20 drafts per minute per running instance; this is not a deployment-wide spending cap. Open the app once online, then disconnect and reopen it from the Home Screen or installed browser app.
 
 ## Install on your devices
 
