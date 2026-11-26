@@ -27,9 +27,10 @@ export function initialBackup(): Backup {
 const isRecord = (value: unknown): value is Row => Boolean(value && typeof value === 'object' && !Array.isArray(value));
 export const toolRows = (settings: Backup['settings']): Row[] => Array.isArray(settings.tools) ? settings.tools.filter(isRecord) : [];
 
-function withRowIds(rows: Row[], replacedIds?: Map<unknown, string | undefined>): Row[] {
+function withRowIds(rows: Row[], replacedIds?: Map<string, string | undefined>): Row[] {
   const validId = (id: unknown): id is string => typeof id === 'string' && Boolean(id.trim());
   const reserved = new Set(rows.map(row => row.id).filter(validId));
+  const kept = new Set(reserved);
   const used = new Set<string>();
   return rows.map(row => {
     if (validId(row.id) && !used.has(row.id)) {
@@ -40,7 +41,8 @@ function withRowIds(rows: Row[], replacedIds?: Map<unknown, string | undefined>)
     while (reserved.has(next.id)) next = newRow(row);
     reserved.add(next.id);
     if (replacedIds && (typeof row.id === 'number' || (typeof row.id === 'string' && row.id && !validId(row.id)))) {
-      replacedIds.set(row.id, replacedIds.has(row.id) ? undefined : next.id);
+      const key = String(row.id);
+      replacedIds.set(key, replacedIds.has(key) || kept.has(key) ? undefined : next.id);
     }
     return next;
   });
@@ -65,13 +67,15 @@ export function importBackup(text: string): Backup {
   }
   for (const key of collections) {
     const link = linkedCollections[key];
-    const ids = link && new Map<unknown, string | undefined>();
+    const ids = link && new Map<string, string | undefined>();
     backup[key] = withRowIds(backup[key], ids);
     if (!link || !ids?.size) continue;
     const { field, lists } = link;
     for (const list of lists) {
       for (const row of backup[list]) {
-        const replacement = ids.get(row[field]);
+        const linked = row[field];
+        if (typeof linked !== 'number' && typeof linked !== 'string') continue;
+        const replacement = ids.get(String(linked));
         if (replacement !== undefined) row[field] = replacement;
       }
     }

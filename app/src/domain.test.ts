@@ -65,6 +65,19 @@ describe('backup', () => {
     expect(unlinked.targetId).toBe(12);
     expect(importBackup(exportBackup(restored))).toEqual(restored);
   });
+  it('restores links stored as strings to targets whose old ID was a number', () => {
+    const original = { ...initialBackup(), targets: [{ id: 42, name: 'Northwind' }], contacts: [{ id: 'avery', targetId: '42' }] };
+    const restored = importBackup(JSON.stringify(original));
+    expect(restored.targets[0].id).toEqual(expect.any(String));
+    expect(restored.targets[0].id).not.toBe('42');
+    expect(restored.contacts[0].targetId).toBe(restored.targets[0].id);
+  });
+  it('leaves a string link alone when a kept target already has that ID', () => {
+    const original = { ...initialBackup(), targets: [{ id: 42 }, { id: '42' }], contacts: [{ id: 'avery', targetId: '42' }] };
+    const restored = importBackup(JSON.stringify(original));
+    expect(restored.targets[1].id).toBe('42');
+    expect(restored.contacts[0].targetId).toBe('42');
+  });
   it('creates RFC 4122 version 4 IDs without randomUUID', () => {
     const getRandomValues = vi.fn((bytes: Uint8Array) => bytes.fill(255));
     vi.stubGlobal('crypto', { getRandomValues });
