@@ -69,9 +69,12 @@ export function importBackup(text: string): Backup {
     backup[key] = withRowIds(backup[key], ids);
     if (!link || !ids?.size) continue;
     const { field, lists } = link;
+    const present = new Set(backup[key].map(row => row.id));
     for (const list of lists) {
       for (const row of backup[list]) {
-        const replacement = ids.get(row[field]);
+        const linked = row[field];
+        const numeric = typeof linked === 'string' && !ids.has(linked) && !present.has(linked) && String(Number(linked)) === linked;
+        const replacement = ids.get(numeric ? Number(linked) : linked);
         if (replacement !== undefined) row[field] = replacement;
       }
     }
