@@ -4,8 +4,8 @@
 Pulls new postings from each target company's configured job-board source,
 filters titles to executive/AI/FinOps scope, dedupes against prior runs,
 scores the new ones against the candidate profile with Claude, and emails
-a digest. Sources that fail are reported in the digest footer, never skipped
-silently.
+a digest. Unexpected source failures add a one-line warning to the digest;
+details go to the Actions run log. Nothing is skipped silently.
 """
 from __future__ import annotations
 
@@ -422,6 +422,7 @@ def main():
     digest = build_digest(scored, failures, min_fit)
     shown = len(split_by_fit(scored, min_fit)[0])
     dry = os.environ.get("DRY_RUN", "").lower() in ("1", "true", "yes")
+    sent = False
     if dry:
         print("DRY RUN - no email sent.")
         print(digest)
@@ -441,7 +442,7 @@ def main():
         print("Sources to check manually:")
         for check in manual_checks:
             print(f"  - {check}")
-    if not dry:  # a dry run must not mark postings as seen, or the real digest misses them
+    if not dry and sent:  # only mark postings seen once they were emailed, or the next digest misses them
         seen.update(j["id"] for j in fresh)
         save_state(sorted(seen))
     print(f"jobs scanned: {len(jobs)}, new: {len(fresh)}, failures: {len(failures)}")

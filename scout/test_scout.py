@@ -4,6 +4,7 @@ test touches the network, the Anthropic API or a mailbox.
 Run from the repo root:  python -m unittest discover -s scout
 """
 import io
+import json
 import os
 import tempfile
 import unittest
@@ -246,6 +247,29 @@ class DryRun(unittest.TestCase):
                 scout.main()
             send.assert_not_called()
             self.assertFalse(state.exists(), "a dry run must not mark postings as seen")
+
+    def test_unsent_digest_saves_no_state(self):
+        job = {"id": "x:1", "title": "VP Cloud", "location": "", "url": "u", "company": "x", "source": "x", "company_name": "X"}
+        with tempfile.TemporaryDirectory() as tmp:
+            state = Path(tmp) / "state.json"
+            with mock.patch.object(scout, "STATE_PATH", state), \
+                 mock.patch.object(scout, "collect", return_value=([job], [], [])), \
+                 mock.patch("sys.stdout", new_callable=io.StringIO), \
+                 mock.patch.dict(os.environ, {}, clear=True):
+                scout.main()
+            self.assertFalse(state.exists(), "postings must not be marked seen when no digest was emailed")
+
+    def test_sent_digest_marks_postings_seen(self):
+        job = {"id": "x:1", "title": "VP Cloud", "location": "", "url": "u", "company": "x", "source": "x", "company_name": "X"}
+        with tempfile.TemporaryDirectory() as tmp:
+            state = Path(tmp) / "state.json"
+            with mock.patch.object(scout, "STATE_PATH", state), \
+                 mock.patch.object(scout, "collect", return_value=([job], [], [])), \
+                 mock.patch.object(scout, "send_digest", return_value=True), \
+                 mock.patch("sys.stdout", new_callable=io.StringIO), \
+                 mock.patch.dict(os.environ, {}, clear=True):
+                scout.main()
+            self.assertEqual(json.loads(state.read_text())["seen"], ["x:1"])
 
 
 if __name__ == "__main__":
