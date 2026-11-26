@@ -10,4 +10,4 @@ Credentials: PhD Business Management (Middlesex); MS Information Systems with di
 
 Target seats: enterprise CIO/CTO-office leadership in $10B+ companies; VP/Global Head roles at cloud, FinOps or AI-governance vendors that value a credible enterprise buyer's perspective; board and advisory seats.
 
-Score 9-10 when a posting is a direct match for those seats; 7-8 for adjacent executive roles in cloud, AI or transformation; 4-6 for plausible-but-sidegways; 1-3 for anything below global head/director scope or clearly commercial-only.
+Score 9-10 when a posting is a direct match for those seats; 7-8 for adjacent executive roles in cloud, AI or transformation; 4-6 for plausible-but-sideways; 1-3 for anything below global head/director scope or clearly commercial-only.
